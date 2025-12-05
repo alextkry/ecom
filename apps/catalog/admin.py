@@ -5,7 +5,7 @@ from django.shortcuts import redirect
 from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
 from import_export.widgets import ForeignKeyWidget
-from adminsortable2.admin import SortableAdminMixin, SortableInlineAdminMixin
+from adminsortable2.admin import SortableAdminMixin, SortableAdminBase, SortableInlineAdminMixin
 from simple_history.admin import SimpleHistoryAdmin
 
 from .models import (
@@ -172,7 +172,7 @@ class AttributeOptionAdmin(ImportExportModelAdmin):
 
 
 @admin.register(Variant)
-class VariantAdmin(ImportExportModelAdmin, SimpleHistoryAdmin):
+class VariantAdmin(SortableAdminBase, ImportExportModelAdmin, SimpleHistoryAdmin):
     resource_class = VariantResource
     list_display = [
         'sku', 'name', 'product', 'sell_price', 'cost_price',
@@ -269,7 +269,8 @@ class VariantGroupAdmin(SortableAdminMixin, admin.ModelAdmin):
     list_filter = ['product', 'is_active', 'is_featured']
     list_editable = ['is_active', 'is_featured', 'display_order']
     search_fields = ['name', 'product__name', 'description']
-    autocomplete_fields = ['product', 'featured_image']
+    autocomplete_fields = ['product']
+    raw_id_fields = ['featured_image']
     prepopulated_fields = {'slug': ('name',)}
     inlines = [VariantGroupMembershipInline]
     
