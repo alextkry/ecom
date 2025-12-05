@@ -36,5 +36,9 @@ urlpatterns = [
     
     # Categories
     path('bulk-edit/categories/search/', views.categories_search, name='categories_search'),
+    path('bulk-edit/categories/data/', views.bulk_categories_data, name='bulk_categories_data'),
+    path('bulk-edit/categories/save/', views.bulk_categories_save, name='bulk_categories_save'),
+    path('bulk-edit/categories/<int:category_id>/products/', views.category_products_list, name='category_products_list'),
+    path('bulk-edit/categories/<int:category_id>/products/update/', views.category_products_update, name='category_products_update'),
     path('bulk-edit/products/<int:product_id>/categories/', views.product_categories_update, name='product_categories_update'),
 ]

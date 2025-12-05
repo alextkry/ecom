@@ -286,6 +286,7 @@
         <button class="tab" onclick="switchTab('variants')">🏷️ Variantes</button>
         <button class="tab" onclick="switchTab('groups')">📁 Grupos</button>
         <button class="tab" onclick="switchTab('attributes')">⚙️ Atributos</button>
+        <button class="tab" onclick="switchTab('categories')">📂 Categorias</button>
     </div>
     
     <!-- TAB: PRODUTOS -->
@@ -385,6 +386,55 @@
         <div id="attributes-grid" class="grid-container"></div>
         <div class="status-bar" id="attributes-status">
             <span class="info">Selecione um tipo de atributo para gerenciar suas opções.</span>
+        </div>
+    </div>
+    
+    <!-- TAB: CATEGORIAS -->
+    <div id="tab-categories" class="tab-content">
+        <div class="help-text">
+            <strong>Categorias:</strong> Gerencie categorias hierárquicas. Clique em "(X produtos)" para gerenciar os produtos da categoria.
+        </div>
+        
+        <div class="controls">
+            <button type="button" onclick="addCategoryRow()">➕ Nova Categoria</button>
+            <button type="button" class="success" onclick="saveCategories()">💾 Salvar Categorias</button>
+            <button type="button" class="secondary" onclick="loadCategories()">🔄 Recarregar</button>
+        </div>
+        
+        <div id="categories-grid" class="grid-container"></div>
+        <div class="status-bar" id="categories-status">
+            <span class="info">Carregando categorias...</span>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Category Products Manager -->
+<div id="category-products-modal" class="modal">
+    <div class="modal-content" style="max-width: 800px; max-height: 85vh; display: flex; flex-direction: column;">
+        <h3>📂 Produtos da Categoria: <span id="cat-products-category-name"></span></h3>
+        
+        <!-- Search -->
+        <div style="margin-bottom: 15px;">
+            <input type="text" id="cat-products-search" placeholder="🔍 Buscar produtos..." 
+                   style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                   oninput="filterCategoryProducts(this.value)">
+        </div>
+        
+        <!-- Products list with checkboxes -->
+        <div style="flex: 1; overflow: auto; border: 1px solid #ddd; border-radius: 4px; max-height: 400px;">
+            <div id="cat-products-list" style="padding: 0;">
+                <!-- Products will be inserted here -->
+            </div>
+        </div>
+        
+        <!-- Stats -->
+        <div style="margin-top: 10px; font-size: 12px; color: #666;">
+            <span id="cat-products-stats"></span>
+        </div>
+        
+        <div class="modal-buttons" style="margin-top: 15px;">
+            <button type="button" class="secondary" onclick="closeCategoryProductsModal()">Cancelar</button>
+            <button type="button" class="success" onclick="saveCategoryProducts()">Salvar</button>
         </div>
     </div>
 </div>
@@ -580,6 +630,7 @@
     let productsHot = null;
     let variantsHot = null;
     let attributesHot = null;
+    let categoriesHot = null;
     let currentProductId = null;
     let currentAttrTypeId = null;
     let currentImageVariantId = null;
@@ -594,6 +645,7 @@
     let newProductRows = new Set();
     let newVariantRows = new Set();
     let newAttrOptionRows = new Set();
+    let newCategoryRows = new Set();
     
     // =============================================================================
     // TAB SWITCHING
@@ -609,6 +661,9 @@
         // Load data for tab if needed
         if (tabName === 'products' && !productsHot) {
             loadProducts();
+        }
+        if (tabName === 'categories' && !categoriesHot) {
+            loadCategoriesGrid();
         }
     }
     
@@ -2412,6 +2467,304 @@
         .catch(error => {
             closeAttrTypeModal();
             setStatus('attributes-status', `Erro: ${error}`, 'error');
+        });
+    }
+    
+    // =============================================================================
+    // CATEGORIES TAB
+    // =============================================================================
+    
+    let allCategoriesData = [];
+    let allProductsForCategories = [];
+    let currentCategoryId = null;
+    let initialProductIds = [];
+    
+    function loadCategoriesGrid() {
+        setStatus('categories-status', 'Carregando categorias...', 'info');
+        
+        fetch('{% url "catalog:bulk_categories_data" %}')
+            .then(response => response.json())
+            .then(data => {
+                allCategoriesData = data.data || [];
+                allProductsForCategories = data.products || [];
+                initCategoriesGrid(data);
+                setStatus('categories-status', `${allCategoriesData.length} categoria(s) carregada(s).`, 'success');
+            })
+            .catch(error => {
+                setStatus('categories-status', `Erro: ${error}`, 'error');
+            });
+    }
+    
+    // Alias for button that uses loadCategories
+    function loadCategories() {
+        loadCategoriesGrid();
+    }
+    
+    function initCategoriesGrid(jsonData) {
+        const container = document.getElementById('categories-grid');
+        
+        if (categoriesHot) {
+            categoriesHot.destroy();
+        }
+        
+        newCategoryRows.clear();
+        
+        // Custom renderer for product count with clickable link
+        function productCountRenderer(instance, td, row, col, prop, value, cellProperties) {
+            const rowData = instance.getSourceDataAtRow(row);
+            const catId = rowData ? rowData.id : null;
+            const count = value || 0;
+            
+            if (catId) {
+                td.innerHTML = `<a href="javascript:void(0)" onclick="openCategoryProductsModal(${catId}, '${(rowData.name || '').replace(/'/g, "\\'")}', ${count})" style="color:#417690; text-decoration:underline;">(${count} produtos)</a>`;
+            } else {
+                td.textContent = `(${count} produtos)`;
+            }
+        }
+        
+        // Custom renderer for parent category
+        function parentRenderer(instance, td, row, col, prop, value, cellProperties) {
+            Handsontable.renderers.TextRenderer.apply(this, arguments);
+            if (value) {
+                const parent = allCategoriesData.find(c => c.id == value);
+                td.textContent = parent ? parent.full_path : `ID: ${value}`;
+            } else {
+                td.textContent = '(Raiz)';
+            }
+        }
+        
+        // Dropdown source for parent categories
+        const parentOptions = [{value: '', label: '(Raiz)'}];
+        allCategoriesData.forEach(cat => {
+            parentOptions.push({value: cat.id, label: cat.full_path});
+        });
+        
+        categoriesHot = new Handsontable(container, {
+            data: jsonData.data,
+            colHeaders: ['ID', 'Nome', 'Slug', 'Descrição', 'Categoria Pai', 'Caminho', 'Produtos', 'Ativa'],
+            columns: [
+                {data: 'id', readOnly: true, width: 50},
+                {data: 'name', width: 180},
+                {data: 'slug', width: 150},
+                {data: 'description', width: 200},
+                {data: 'parent_id', width: 180, renderer: parentRenderer, type: 'dropdown', source: parentOptions.map(o => o.label), strict: false},
+                {data: 'full_path', readOnly: true, width: 250},
+                {data: 'product_count', readOnly: true, width: 110, renderer: productCountRenderer},
+                {data: 'is_active', type: 'checkbox', width: 60}
+            ],
+            rowHeaders: true,
+            contextMenu: true,
+            manualColumnResize: true,
+            stretchH: 'all',
+            height: '100%',
+            copyPaste: true,
+            fillHandle: true,
+            outsideClickDeselects: false,
+            licenseKey: 'non-commercial-and-evaluation',
+            
+            afterCreateRow: function(index, amount) {
+                for (let i = 0; i < amount; i++) {
+                    newCategoryRows.add(index + i);
+                    this.setDataAtRowProp(index + i, 'is_active', true);
+                    this.setDataAtRowProp(index + i, 'product_count', 0);
+                }
+                this.render();
+            },
+            
+            beforeChange: function(changes, source) {
+                // Convert parent label back to ID
+                if (!changes) return;
+                changes.forEach(change => {
+                    const [row, prop, oldVal, newVal] = change;
+                    if (prop === 'parent_id' && typeof newVal === 'string') {
+                        if (newVal === '(Raiz)' || newVal === '') {
+                            change[3] = null;
+                        } else {
+                            const parent = allCategoriesData.find(c => c.full_path === newVal);
+                            change[3] = parent ? parent.id : null;
+                        }
+                    }
+                });
+            },
+            
+            cells: function(row, col) {
+                const cellProperties = {};
+                if (newCategoryRows.has(row)) {
+                    cellProperties.className = 'new-row';
+                }
+                return cellProperties;
+            }
+        });
+    }
+    
+    function addCategoryRow() {
+        if (!categoriesHot) {
+            loadCategoriesGrid();
+            return;
+        }
+        categoriesHot.alter('insert_row_below', categoriesHot.countRows());
+    }
+    
+    function saveCategories() {
+        if (!categoriesHot) return;
+        
+        const allData = categoriesHot.getSourceData();
+        const toCreate = [];
+        const toUpdate = [];
+        
+        allData.forEach((row, index) => {
+            if (!row.name) return;
+            
+            const catData = {
+                name: row.name,
+                slug: row.slug || '',
+                description: row.description || '',
+                parent_id: row.parent_id || null,
+                is_active: row.is_active !== false
+            };
+            
+            if (newCategoryRows.has(index) || !row.id) {
+                toCreate.push(catData);
+            } else {
+                catData.id = row.id;
+                toUpdate.push(catData);
+            }
+        });
+        
+        setStatus('categories-status', 'Salvando...', 'info');
+        
+        fetch('{% url "catalog:bulk_categories_save" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({create: toCreate, update: toUpdate})
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'ok') {
+                setStatus('categories-status', 
+                    `✓ ${result.created} criada(s), ${result.updated} atualizada(s)`, 'success');
+                newCategoryRows.clear();
+                loadCategoriesGrid();
+            } else {
+                setStatus('categories-status', `Erro: ${result.message}`, 'error');
+            }
+        })
+        .catch(error => {
+            setStatus('categories-status', `Erro: ${error}`, 'error');
+        });
+    }
+    
+    // --- Category Products Modal ---
+    
+    function openCategoryProductsModal(categoryId, categoryName, productCount) {
+        currentCategoryId = categoryId;
+        document.getElementById('cat-products-category-name').textContent = categoryName;
+        document.getElementById('cat-products-search').value = '';
+        
+        // Fetch products with their category membership
+        fetch(`/catalog/bulk-edit/categories/${categoryId}/products/`)
+            .then(response => response.json())
+            .then(data => {
+                allProductsForCategories = data.all_products || [];
+                initialProductIds = data.category_product_ids || [];
+                renderCategoryProductsList(allProductsForCategories, initialProductIds);
+                document.getElementById('category-products-modal').style.display = 'block';
+            })
+            .catch(error => {
+                setStatus('categories-status', `Erro ao carregar produtos: ${error}`, 'error');
+            });
+    }
+    
+    function renderCategoryProductsList(products, selectedIds) {
+        const container = document.getElementById('cat-products-list');
+        const selectedCount = selectedIds.length;
+        
+        let html = '';
+        products.forEach(p => {
+            const isChecked = selectedIds.includes(p.id);
+            html += `
+                <label class="category-item" style="display:flex; align-items:center; gap:10px;">
+                    <input type="checkbox" value="${p.id}" ${isChecked ? 'checked' : ''} onchange="updateCatProductStats()">
+                    <span style="flex:1;">${p.name}</span>
+                    <span style="color:#888; font-size:12px;">${p.sku || ''}</span>
+                </label>
+            `;
+        });
+        
+        container.innerHTML = html || '<p style="padding:20px; color:#888;">Nenhum produto encontrado.</p>';
+        updateCatProductStats();
+    }
+    
+    function updateCatProductStats() {
+        const checkboxes = document.querySelectorAll('#cat-products-list input[type="checkbox"]');
+        const total = checkboxes.length;
+        const selected = Array.from(checkboxes).filter(cb => cb.checked).length;
+        document.getElementById('cat-products-stats').textContent = `${selected} de ${total} produtos selecionados`;
+    }
+    
+    function filterCategoryProducts(searchTerm) {
+        const items = document.querySelectorAll('#cat-products-list .category-item');
+        const term = searchTerm.toLowerCase();
+        
+        items.forEach(item => {
+            const text = item.textContent.toLowerCase();
+            item.style.display = text.includes(term) ? 'flex' : 'none';
+        });
+    }
+    
+    function closeCategoryProductsModal() {
+        document.getElementById('category-products-modal').style.display = 'none';
+        currentCategoryId = null;
+        initialProductIds = [];
+    }
+    
+    function saveCategoryProducts() {
+        if (!currentCategoryId) return;
+        
+        const checkboxes = document.querySelectorAll('#cat-products-list input[type="checkbox"]');
+        const currentProductIds = [];
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                currentProductIds.push(parseInt(cb.value));
+            }
+        });
+        
+        // Calculate additions and removals
+        const addProductIds = currentProductIds.filter(id => !initialProductIds.includes(id));
+        const removeProductIds = initialProductIds.filter(id => !currentProductIds.includes(id));
+        
+        if (addProductIds.length === 0 && removeProductIds.length === 0) {
+            closeCategoryProductsModal();
+            return;
+        }
+        
+        fetch(`/catalog/bulk-edit/categories/${currentCategoryId}/products/update/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                add_product_ids: addProductIds,
+                remove_product_ids: removeProductIds
+            })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'ok') {
+                closeCategoryProductsModal();
+                setStatus('categories-status', 
+                    `✓ ${result.added} produto(s) adicionado(s), ${result.removed} removido(s)`, 'success');
+                loadCategoriesGrid();
+            } else {
+                setStatus('categories-status', `Erro: ${result.message}`, 'error');
+            }
+        })
+        .catch(error => {
+            setStatus('categories-status', `Erro: ${error}`, 'error');
         });
     }
     

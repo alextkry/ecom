@@ -1322,3 +1322,192 @@ def product_categories_update(request, product_id):
     })
 
 
+@staff_member_required
+@require_http_methods(["GET"])
+def bulk_categories_data(request):
+    """API endpoint to get categories data for the grid."""
+    from django.db.models import Count
+    
+    categories = Category.objects.select_related('parent').annotate(
+        product_count=Count('products')
+    ).order_by('parent__name', 'display_order', 'name')
+    
+    data = []
+    for cat in categories:
+        data.append({
+            'id': cat.id,
+            'name': cat.name,
+            'slug': cat.slug,
+            'parent_id': cat.parent_id,
+            'parent_name': cat.parent.name if cat.parent else None,
+            'parent_slug': cat.parent.slug if cat.parent else None,
+            'full_path': cat.full_path,
+            'description': cat.description or '',
+            'is_active': cat.is_active,
+            'display_order': cat.display_order,
+            'product_count': cat.product_count,
+            'level': len(cat.get_ancestors()),
+        })
+    
+    return JsonResponse({'data': data})
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+@csrf_protect
+def bulk_categories_save(request):
+    """API endpoint to create/update categories."""
+    try:
+        payload = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+    
+    to_create = payload.get('create', [])
+    to_update = payload.get('update', [])
+    
+    created_count = 0
+    updated_count = 0
+    errors = []
+    
+    with transaction.atomic():
+        # Create new categories
+        for item in to_create:
+            try:
+                name = item.get('name', '').strip()
+                if not name:
+                    continue
+                
+                slug = item.get('slug', '').strip() or slugify(name)
+                
+                # Ensure unique slug
+                base_slug = slug
+                counter = 1
+                while Category.objects.filter(slug=slug).exists():
+                    slug = f"{base_slug}-{counter}"
+                    counter += 1
+                
+                # Get parent if specified
+                parent = None
+                parent_slug = item.get('parent_slug', '').strip()
+                if parent_slug:
+                    parent = Category.objects.filter(slug=parent_slug).first()
+                
+                Category.objects.create(
+                    name=name,
+                    slug=slug,
+                    parent=parent,
+                    description=item.get('description', ''),
+                    is_active=item.get('is_active', True),
+                    display_order=item.get('display_order', 0),
+                )
+                created_count += 1
+            except Exception as e:
+                errors.append(f"Erro ao criar '{item.get('name', '?')}': {str(e)}")
+        
+        # Update existing categories
+        for item in to_update:
+            try:
+                cat = Category.objects.get(pk=item['id'])
+                cat.name = item.get('name', cat.name)
+                if item.get('slug'):
+                    cat.slug = item['slug']
+                cat.description = item.get('description', '')
+                cat.is_active = item.get('is_active', True)
+                cat.display_order = item.get('display_order', 0)
+                
+                # Update parent
+                parent_slug = item.get('parent_slug', '').strip() if item.get('parent_slug') else None
+                if parent_slug:
+                    cat.parent = Category.objects.filter(slug=parent_slug).first()
+                else:
+                    cat.parent = None
+                
+                cat.save()
+                updated_count += 1
+            except Category.DoesNotExist:
+                errors.append(f"Categoria ID {item.get('id')} não encontrada")
+            except Exception as e:
+                errors.append(f"Erro ao atualizar ID {item.get('id')}: {str(e)}")
+    
+    return JsonResponse({
+        'status': 'ok',
+        'created': created_count,
+        'updated': updated_count,
+        'errors': errors,
+    })
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def category_products_list(request, category_id):
+    """Get all products with their category membership status."""
+    try:
+        category = Category.objects.get(pk=category_id)
+    except Category.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Categoria não encontrada'}, status=404)
+    
+    # Get all products
+    all_products = Product.objects.filter(is_active=True).order_by('name')
+    
+    # Get products in this category
+    category_product_ids = list(category.products.values_list('id', flat=True))
+    
+    products = []
+    for product in all_products:
+        products.append({
+            'id': product.id,
+            'name': product.name,
+            'sku': product.slug,
+        })
+    
+    return JsonResponse({
+        'category': {
+            'id': category.id,
+            'name': category.name,
+            'full_path': category.full_path,
+        },
+        'all_products': products,
+        'category_product_ids': category_product_ids,
+    })
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+@csrf_protect
+def category_products_update(request, category_id):
+    """Update products in a category (add/remove)."""
+    try:
+        category = Category.objects.get(pk=category_id)
+    except Category.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Categoria não encontrada'}, status=404)
+    
+    try:
+        body = json.loads(request.body)
+        add_product_ids = body.get('add_product_ids', [])
+        remove_product_ids = body.get('remove_product_ids', [])
+    except (json.JSONDecodeError, KeyError):
+        return JsonResponse({'status': 'error', 'message': 'Dados inválidos'}, status=400)
+    
+    added = 0
+    removed = 0
+    
+    # Add products
+    if add_product_ids:
+        products_to_add = Product.objects.filter(id__in=add_product_ids, is_active=True)
+        for product in products_to_add:
+            category.products.add(product)
+            added += 1
+    
+    # Remove products
+    if remove_product_ids:
+        products_to_remove = Product.objects.filter(id__in=remove_product_ids)
+        for product in products_to_remove:
+            category.products.remove(product)
+            removed += 1
+    
+    return JsonResponse({
+        'status': 'ok',
+        'added': added,
+        'removed': removed,
+        'product_count': category.products.count(),
+    })
