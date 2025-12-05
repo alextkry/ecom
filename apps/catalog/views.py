@@ -44,6 +44,8 @@ def bulk_edit_view(request):
 @require_http_methods(["GET"])
 def bulk_products_data(request):
     """API endpoint to get products data."""
+    from django.db.models import Min, Max, Avg, Sum
+    
     products = Product.objects.prefetch_related(
         'variants__images',
         'variant_groups'
@@ -74,6 +76,9 @@ def bulk_products_data(request):
             'sell_price': None,
             'compare_at_price': None,
             'stock_quantity': 0,
+            # Stats fields (for products with multiple variants)
+            'price_stats': None,
+            'stock_stats': None,
         }
         
         # If product has 0 or 1 variant, include variant data inline
@@ -86,6 +91,36 @@ def bulk_products_data(request):
                 row['sell_price'] = float(variant.sell_price) if variant.sell_price else None
                 row['compare_at_price'] = float(variant.compare_at_price) if variant.compare_at_price else None
                 row['stock_quantity'] = variant.stock_quantity
+        else:
+            # Calculate statistics for products with multiple variants
+            stats = product.variants.aggregate(
+                sell_price_min=Min('sell_price'),
+                sell_price_max=Max('sell_price'),
+                sell_price_avg=Avg('sell_price'),
+                cost_price_min=Min('cost_price'),
+                cost_price_max=Max('cost_price'),
+                cost_price_avg=Avg('cost_price'),
+                stock_min=Min('stock_quantity'),
+                stock_max=Max('stock_quantity'),
+                stock_avg=Avg('stock_quantity'),
+                stock_total=Sum('stock_quantity'),
+            )
+            
+            row['price_stats'] = {
+                'sell_min': float(stats['sell_price_min']) if stats['sell_price_min'] else None,
+                'sell_max': float(stats['sell_price_max']) if stats['sell_price_max'] else None,
+                'sell_avg': round(float(stats['sell_price_avg']), 2) if stats['sell_price_avg'] else None,
+                'cost_min': float(stats['cost_price_min']) if stats['cost_price_min'] else None,
+                'cost_max': float(stats['cost_price_max']) if stats['cost_price_max'] else None,
+                'cost_avg': round(float(stats['cost_price_avg']), 2) if stats['cost_price_avg'] else None,
+            }
+            
+            row['stock_stats'] = {
+                'min': stats['stock_min'] or 0,
+                'max': stats['stock_max'] or 0,
+                'avg': round(float(stats['stock_avg']), 1) if stats['stock_avg'] else 0,
+                'total': stats['stock_total'] or 0,
+            }
         
         data.append(row)
     
