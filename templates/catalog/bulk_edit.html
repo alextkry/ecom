@@ -783,9 +783,9 @@
                 {data: 'stock_quantity', type: 'numeric', width: 80, renderer: variantStockRenderer},
                 {data: 'is_active', type: 'checkbox', width: 60},
                 {data: 'id', renderer: linksRenderer, readOnly: true, width: 130},
-                {data: 'attributes_json', renderer: jsonAttributesRenderer, readOnly: true, width: 150},
-                {data: 'variants_json', renderer: jsonVariantsRenderer, readOnly: true, width: 180},
-                {data: 'groups_json', renderer: jsonGroupsRenderer, readOnly: true, width: 150},
+                {data: 'attributes_json', renderer: jsonAttributesRenderer, width: 150},
+                {data: 'variants_json', renderer: jsonVariantsRenderer, width: 180},
+                {data: 'groups_json', renderer: jsonGroupsRenderer, width: 150},
                 {data: 'created_at', readOnly: true, width: 130},
             ],
             rowHeaders: true,
@@ -840,6 +840,71 @@
                     cellProperties.className = 'new-row';
                 }
                 return cellProperties;
+            },
+            
+            // Handle copy for JSON columns - serialize to JSON string
+            beforeCopy: function(data, coords) {
+                const jsonColumns = ['attributes_json', 'variants_json', 'groups_json'];
+                
+                coords.forEach((coord, index) => {
+                    for (let row = coord.startRow; row <= coord.endRow; row++) {
+                        for (let col = coord.startCol; col <= coord.endCol; col++) {
+                            const prop = this.colToProp(col);
+                            if (jsonColumns.includes(prop)) {
+                                const rowIndex = row - coord.startRow;
+                                const colIndex = col - coord.startCol;
+                                const value = this.getDataAtCell(row, col);
+                                if (value && typeof value === 'object') {
+                                    data[rowIndex][colIndex] = JSON.stringify(value);
+                                }
+                            }
+                        }
+                    }
+                });
+            },
+            
+            // Handle paste for JSON columns - parse from JSON string
+            beforePaste: function(data, coords) {
+                const jsonColumns = ['attributes_json', 'variants_json', 'groups_json'];
+                
+                coords.forEach((coord) => {
+                    for (let row = 0; row < data.length; row++) {
+                        for (let col = 0; col < data[row].length; col++) {
+                            const targetCol = coord.startCol + col;
+                            const prop = this.colToProp(targetCol);
+                            
+                            if (jsonColumns.includes(prop)) {
+                                const value = data[row][col];
+                                if (value && typeof value === 'string') {
+                                    try {
+                                        data[row][col] = JSON.parse(value);
+                                    } catch (e) {
+                                        // If not valid JSON, keep as is
+                                        console.warn('Invalid JSON paste:', value);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            },
+            
+            // Allow editing JSON columns via paste
+            beforeChange: function(changes, source) {
+                if (source === 'CopyPaste.paste') {
+                    const jsonColumns = ['attributes_json', 'variants_json', 'groups_json'];
+                    
+                    changes.forEach((change, index) => {
+                        const [row, prop, oldValue, newValue] = change;
+                        if (jsonColumns.includes(prop) && typeof newValue === 'string') {
+                            try {
+                                changes[index][3] = JSON.parse(newValue);
+                            } catch (e) {
+                                // Keep as is if not valid JSON
+                            }
+                        }
+                    });
+                }
             }
         });
     }

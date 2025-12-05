@@ -108,7 +108,14 @@ Por exemplo, teria uma coluna "atributos" e nesta coluna eu poderia já informar
 
 Eu acho que seria interessante se gerassemos as tabelas dinamicamente de variantes, grupos e atributos à partir desta informação implicita (json) de cada produto embutido em cada célula destas colunas e que ao salvar estas edições apenas alterassemos o valor deste json e que seria persistido no banco de dados após salvar o produto.
 
-Neste caso, eu não vejo a necessidade de tooltips mostrando o json destas células, mas ao clickar nestas células apareceria esta funcionalidade de editar aquele json através de uma outra tabela construida a partir dele e que salva os resultados nele.
+Ao clickar nestas células apareceria esta funcionalidade de editar aquele json através de uma outra tabela construida a partir dele e que salva os resultados nele.
+Por exemplo:
+|Atributo | Valores (Separados por Vírgula) |
+|Comprimento | 230mts |
+|Cor |	Azul, Verde, Vermelho|
+|Numero| 5|
+
+É bom que não seja mostrado o conteúdo JSON nestas células JSON por ser muito grande (Então, pode haver apenas um resumo do conteúdo, conforme foi implementado. Por exempo: <Comprimento: 1>, <Cor: 3>, <Número: 1> ). Porém, ao copiar estas células seria bom que pudesse ser copiado o conteúdo JSON e também colado conteúdo json em outras células.
 
 
 # Specifications v1.0.7
