@@ -10,6 +10,7 @@ from django.utils.text import slugify
 
 from .models import (
     Product,
+    Category,
     Variant,
     VariantGroup,
     VariantGroupMembership,
@@ -49,7 +50,8 @@ def bulk_products_data(request):
     products = Product.objects.prefetch_related(
         'variants__images',
         'variants__variantattribute_set__attribute_option__attribute_type',
-        'variant_groups__variants'
+        'variant_groups__variants',
+        'categories',
     ).all().order_by('name')
     
     data = []
@@ -57,6 +59,12 @@ def bulk_products_data(request):
         # Get attribute types count for this product
         attr_types_count = product.get_attribute_types().count()
         variant_count = product.variant_count
+        
+        # Build categories data
+        categories_list = [
+            {'id': cat.id, 'name': cat.name, 'full_path': cat.full_path}
+            for cat in product.categories.all()
+        ]
         
         row = {
             'id': product.id,
@@ -84,6 +92,9 @@ def bulk_products_data(request):
             'attributes_json': None,
             'variants_json': None,
             'groups_json': None,
+            # Categories
+            'categories': categories_list,
+            'category_ids': [c['id'] for c in categories_list],
         }
         
         # Build attributes JSON - aggregate all attribute types and their values
@@ -1141,4 +1152,92 @@ def variant_image_set_primary(request, image_id):
     img.save()  # save() method handles unsetting other primaries
     
     return JsonResponse({'status': 'ok'})
+
+
+# =============================================================================
+# CATEGORIES
+# =============================================================================
+
+@staff_member_required
+@require_http_methods(["GET"])
+def categories_search(request):
+    """
+    Search/list categories with hierarchy info.
+    Query params:
+    - q: search query (optional)
+    - product_id: filter to get categories for a specific product (optional)
+    """
+    query = request.GET.get('q', '').strip()
+    product_id = request.GET.get('product_id')
+    
+    categories = Category.objects.filter(is_active=True).select_related('parent')
+    
+    if query:
+        # Search in name and full path
+        categories = categories.filter(name__icontains=query)
+    
+    categories = categories.order_by('parent__name', 'display_order', 'name')[:100]
+    
+    # Get selected category IDs for the product if specified
+    selected_ids = set()
+    if product_id:
+        try:
+            product = Product.objects.get(pk=product_id)
+            selected_ids = set(product.categories.values_list('id', flat=True))
+        except Product.DoesNotExist:
+            pass
+    
+    data = []
+    for cat in categories:
+        data.append({
+            'id': cat.id,
+            'name': cat.name,
+            'slug': cat.slug,
+            'full_path': cat.full_path,
+            'parent_id': cat.parent_id,
+            'parent_name': cat.parent.name if cat.parent else None,
+            'level': len(cat.get_ancestors()),
+            'selected': cat.id in selected_ids,
+        })
+    
+    return JsonResponse({'categories': data})
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+@csrf_protect
+def product_categories_update(request, product_id):
+    """Update categories for a product."""
+    try:
+        product = Product.objects.get(pk=product_id)
+    except Product.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Produto não encontrado'}, status=404)
+    
+    try:
+        body = json.loads(request.body)
+        category_ids = body.get('category_ids', [])
+    except (json.JSONDecodeError, KeyError):
+        return JsonResponse({'status': 'error', 'message': 'Dados inválidos'}, status=400)
+    
+    # Validate category IDs
+    valid_categories = Category.objects.filter(id__in=category_ids, is_active=True)
+    
+    # Update product categories
+    product.categories.set(valid_categories)
+    
+    # Return updated categories
+    categories_data = [
+        {
+            'id': cat.id,
+            'name': cat.name,
+            'full_path': cat.full_path,
+        }
+        for cat in product.categories.all()
+    ]
+    
+    return JsonResponse({
+        'status': 'ok',
+        'categories': categories_data,
+    })
+
 

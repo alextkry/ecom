@@ -10,6 +10,7 @@ from simple_history.admin import SimpleHistoryAdmin
 
 from .models import (
     Product,
+    Category,
     AttributeType,
     AttributeOption,
     Variant,
@@ -117,6 +118,19 @@ class VariantInline(admin.TabularInline):
 # =============================================================================
 # Model Admins
 # =============================================================================
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ['name', 'parent', 'full_path', 'is_active', 'display_order']
+    list_filter = ['is_active', 'parent']
+    search_fields = ['name', 'slug']
+    prepopulated_fields = {'slug': ('name',)}
+    list_editable = ['display_order', 'is_active']
+    ordering = ['display_order', 'name']
+    
+    def full_path(self, obj):
+        return obj.full_path
+    full_path.short_description = 'Caminho Completo'
 
 @admin.register(Product)
 class ProductAdmin(SimpleHistoryAdmin):

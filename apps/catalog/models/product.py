@@ -22,6 +22,12 @@ class Product(models.Model):
         blank=True,
         verbose_name='Descrição'
     )
+    categories = models.ManyToManyField(
+        'Category',
+        blank=True,
+        related_name='products',
+        verbose_name='Categorias'
+    )
     is_active = models.BooleanField(
         default=True,
         verbose_name='Ativo'
@@ -70,7 +76,15 @@ class Product(models.Model):
                 except Exception:
                     return primary_image.image.url
         return None
-        return None
+
+    def get_all_categories(self):
+        """Get all categories including ancestors."""
+        all_cats = set()
+        for cat in self.categories.all():
+            all_cats.add(cat)
+            for ancestor in cat.get_ancestors():
+                all_cats.add(ancestor)
+        return all_cats
 
     def get_attribute_types(self):
         """Get all attribute types used by this product's variants."""

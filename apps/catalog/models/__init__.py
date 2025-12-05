@@ -14,9 +14,11 @@ from .attribute import AttributeType, AttributeOption
 from .variant import Variant, VariantAttribute, VariantImage
 from .variant_group import VariantGroup, VariantGroupMembership
 from .price_history import PriceHistory
+from .category import Category
 
 __all__ = [
     'Product',
+    'Category',
     'AttributeType',
     'AttributeOption',
     'Variant',

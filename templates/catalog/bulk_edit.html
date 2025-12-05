@@ -239,6 +239,41 @@
         padding: 2px 6px;
         border-radius: 3px;
     }
+    
+    /* Categories modal styles */
+    .category-item {
+        padding: 8px;
+        border-bottom: 1px solid #f0f0f0;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .category-item:hover {
+        background-color: #f5f5f5;
+    }
+    .category-item.selected {
+        background-color: #e3f2fd;
+    }
+    .category-badge {
+        display: inline-flex;
+        align-items: center;
+        background: #e3f2fd;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        margin: 2px;
+    }
+    .category-badge button {
+        background: none;
+        border: none;
+        color: #666;
+        cursor: pointer;
+        margin-left: 5px;
+        font-size: 14px;
+        padding: 0 2px;
+    }
+    .category-badge button:hover {
+        color: #dc3545;
+    }
 </style>
 {% endblock %}
 
@@ -498,6 +533,43 @@
         <div class="modal-buttons">
             <button type="button" class="secondary" onclick="closeJsonGroupsModal()">Cancelar</button>
             <button type="button" class="success" onclick="saveJsonGroups()">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Categories Multi-select -->
+<div id="categories-modal" class="modal">
+    <div class="modal-content" style="max-width: 600px; max-height: 80vh; display: flex; flex-direction: column;">
+        <h3>📂 Categorias do Produto: <span id="cat-product-name"></span></h3>
+        <p style="font-size: 12px; color: #666; margin-bottom: 10px;">
+            Selecione uma ou mais categorias para o produto. Use a busca para filtrar.
+        </p>
+        
+        <!-- Search input -->
+        <div style="margin-bottom: 15px;">
+            <input type="text" id="category-search" placeholder="🔍 Buscar categorias..." 
+                   style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+                   oninput="searchCategories(this.value)">
+        </div>
+        
+        <!-- Selected categories -->
+        <div id="selected-categories" style="margin-bottom: 15px; min-height: 30px;">
+            <label style="font-weight: 500; margin-bottom: 5px; display: block;">Selecionadas:</label>
+            <div id="selected-cats-container" style="display: flex; flex-wrap: wrap; gap: 5px;">
+                <!-- Selected category badges will be inserted here -->
+            </div>
+        </div>
+        
+        <!-- Available categories -->
+        <div style="flex: 1; overflow: auto; min-height: 200px; max-height: 300px; border: 1px solid #ddd; border-radius: 4px;">
+            <div id="categories-list" style="padding: 10px;">
+                <!-- Category checkboxes will be inserted here -->
+            </div>
+        </div>
+        
+        <div class="modal-buttons" style="margin-top: 15px;">
+            <button type="button" class="secondary" onclick="closeCategoriesModal()">Cancelar</button>
+            <button type="button" class="success" onclick="saveProductCategories()">Salvar</button>
         </div>
     </div>
 </div>
@@ -768,9 +840,37 @@
             };
         }
         
+        function categoriesRenderer(instance, td, row, col, prop, value, cellProperties) {
+            td.style.fontSize = '11px';
+            td.style.whiteSpace = 'nowrap';
+            td.style.overflow = 'hidden';
+            td.style.textOverflow = 'ellipsis';
+            td.style.cursor = 'pointer';
+            
+            if (!value || !Array.isArray(value) || value.length === 0) {
+                td.innerHTML = '<span style="color:#666;text-decoration:underline;">+ Categorias</span>';
+            } else {
+                // Show category names with different colors for hierarchy
+                const badges = value.map(c => {
+                    // Check if category has a parent (is a subcategory)
+                    const isSubcategory = c.full_path && c.full_path.includes(' > ');
+                    const bgColor = isSubcategory ? '#e3f2fd' : '#e8f5e9';  // Blue for subcategory, green for root
+                    const displayName = c.name || 'Sem nome';
+                    const tooltipPath = c.full_path || displayName;
+                    return `<span style="background:${bgColor};padding:1px 4px;border-radius:3px;margin-right:3px;display:inline-block;" title="${tooltipPath}">${displayName}</span>`;
+                }).join('');
+                td.innerHTML = badges;
+            }
+            
+            td.onclick = function(e) {
+                e.stopPropagation();
+                openCategoriesModal(row);
+            };
+        }
+        
         productsHot = new Handsontable(container, {
             data: jsonData.data,
-            colHeaders: ['', 'ID', 'Nome', 'Slug', 'Descrição', 'SKU', 'Preço Custo', 'Preço Venda', 'Estoque', 'Ativo', 'Ações', 'Atributos', 'Variantes', 'Grupos', 'Criado em'],
+            colHeaders: ['', 'ID', 'Nome', 'Slug', 'Descrição', 'SKU', 'Preço Custo', 'Preço Venda', 'Estoque', 'Ativo', 'Categorias', 'Ações', 'Atributos', 'Variantes', 'Grupos', 'Criado em'],
             columns: [
                 {data: 'thumbnail_url', renderer: thumbnailRenderer, readOnly: true, width: 60},
                 {data: 'id', readOnly: true, width: 50},
@@ -782,6 +882,7 @@
                 {data: 'sell_price', type: 'numeric', numericFormat: {pattern: '0,0.00'}, width: 100, renderer: variantSellPriceRenderer},
                 {data: 'stock_quantity', type: 'numeric', width: 80, renderer: variantStockRenderer},
                 {data: 'is_active', type: 'checkbox', width: 60},
+                {data: 'categories', renderer: categoriesRenderer, readOnly: true, width: 180},
                 {data: 'id', renderer: linksRenderer, readOnly: true, width: 130},
                 {data: 'attributes_json', renderer: jsonAttributesRenderer, width: 150},
                 {data: 'variants_json', renderer: jsonVariantsRenderer, width: 180},
@@ -1219,6 +1320,194 @@
         productsHot.setDataAtRowProp(jsonEditingRow, 'groups_json', groups.length > 0 ? groups : null);
         
         closeJsonGroupsModal();
+    }
+    
+    // =============================================================================
+    // CATEGORIES MODAL
+    // =============================================================================
+    let categoriesEditingRow = null;
+    let allCategories = [];  // Cache for all categories
+    let selectedCategoryIds = new Set();  // Currently selected category IDs
+    
+    async function openCategoriesModal(row) {
+        categoriesEditingRow = row;
+        const rowData = productsHot.getSourceDataAtRow(row);
+        const productId = rowData.id;
+        const productName = rowData.name || 'Novo Produto';
+        
+        document.getElementById('cat-product-name').textContent = productName;
+        document.getElementById('category-search').value = '';
+        
+        // Initialize selected categories from current data
+        selectedCategoryIds = new Set();
+        if (rowData.categories && rowData.categories.length > 0) {
+            rowData.categories.forEach(c => selectedCategoryIds.add(c.id));
+        }
+        
+        // Show modal
+        document.getElementById('categories-modal').style.display = 'block';
+        
+        // Load categories with product_id if available
+        await loadCategories(productId);
+        
+        renderSelectedCategories();
+        renderCategoriesList('');
+    }
+    
+    async function loadCategories(productId = null) {
+        try {
+            let url = '/catalog/bulk-edit/categories/search/';
+            if (productId) {
+                url += `?product_id=${productId}`;
+            }
+            const response = await fetch(url);
+            const data = await response.json();
+            allCategories = data.categories || [];
+            
+            // Update selectedCategoryIds based on server data
+            allCategories.forEach(cat => {
+                if (cat.selected) {
+                    selectedCategoryIds.add(cat.id);
+                }
+            });
+        } catch (error) {
+            console.error('Erro ao carregar categorias:', error);
+            allCategories = [];
+        }
+    }
+    
+    function searchCategories(query) {
+        renderCategoriesList(query.toLowerCase().trim());
+    }
+    
+    function renderSelectedCategories() {
+        const container = document.getElementById('selected-cats-container');
+        
+        if (selectedCategoryIds.size === 0) {
+            container.innerHTML = '<span style="color: #666; font-style: italic;">Nenhuma categoria selecionada</span>';
+            return;
+        }
+        
+        const selectedCats = allCategories.filter(c => selectedCategoryIds.has(c.id));
+        container.innerHTML = selectedCats.map(cat => `
+            <span style="display: inline-flex; align-items: center; background: #e3f2fd; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
+                ${cat.full_path}
+                <button onclick="removeCategorySelection(${cat.id})" 
+                        style="background: none; border: none; color: #666; cursor: pointer; margin-left: 5px; font-size: 14px;">×</button>
+            </span>
+        `).join('');
+    }
+    
+    function renderCategoriesList(query) {
+        const container = document.getElementById('categories-list');
+        
+        // Filter categories by query
+        let filtered = allCategories;
+        if (query) {
+            filtered = allCategories.filter(c => 
+                c.name.toLowerCase().includes(query) || 
+                c.full_path.toLowerCase().includes(query)
+            );
+        }
+        
+        if (filtered.length === 0) {
+            container.innerHTML = '<p style="color: #666; text-align: center;">Nenhuma categoria encontrada</p>';
+            return;
+        }
+        
+        // Group by parent for hierarchy display
+        const rootCategories = filtered.filter(c => !c.parent_id);
+        const childCategories = filtered.filter(c => c.parent_id);
+        
+        let html = '';
+        
+        // Render categories with indentation based on level
+        filtered.sort((a, b) => a.full_path.localeCompare(b.full_path)).forEach(cat => {
+            const isSelected = selectedCategoryIds.has(cat.id);
+            const indent = cat.level * 20;
+            const bgColor = isSelected ? '#e3f2fd' : 'transparent';
+            
+            html += `
+                <div style="padding: 8px; padding-left: ${indent + 8}px; background: ${bgColor}; border-bottom: 1px solid #f0f0f0; cursor: pointer;"
+                     onclick="toggleCategorySelection(${cat.id})">
+                    <label style="display: flex; align-items: center; cursor: pointer; margin: 0;">
+                        <input type="checkbox" ${isSelected ? 'checked' : ''} 
+                               style="margin-right: 8px;"
+                               onclick="event.stopPropagation(); toggleCategorySelection(${cat.id})">
+                        <span style="flex: 1;">
+                            ${cat.level > 0 ? '└─ ' : ''}
+                            <strong>${cat.name}</strong>
+                            ${cat.parent_name ? `<span style="color: #666; font-size: 11px;"> (${cat.parent_name})</span>` : ''}
+                        </span>
+                    </label>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+    }
+    
+    function toggleCategorySelection(catId) {
+        if (selectedCategoryIds.has(catId)) {
+            selectedCategoryIds.delete(catId);
+        } else {
+            selectedCategoryIds.add(catId);
+        }
+        renderSelectedCategories();
+        renderCategoriesList(document.getElementById('category-search').value.toLowerCase().trim());
+    }
+    
+    function removeCategorySelection(catId) {
+        selectedCategoryIds.delete(catId);
+        renderSelectedCategories();
+        renderCategoriesList(document.getElementById('category-search').value.toLowerCase().trim());
+    }
+    
+    function closeCategoriesModal() {
+        document.getElementById('categories-modal').style.display = 'none';
+        categoriesEditingRow = null;
+    }
+    
+    async function saveProductCategories() {
+        if (categoriesEditingRow === null) return;
+        
+        const rowData = productsHot.getSourceDataAtRow(categoriesEditingRow);
+        const productId = rowData.id;
+        
+        if (!productId) {
+            alert('Salve o produto primeiro antes de adicionar categorias.');
+            closeCategoriesModal();
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/catalog/bulk-edit/products/${productId}/categories/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({
+                    category_ids: Array.from(selectedCategoryIds)
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Erro ao salvar categorias');
+            }
+            
+            const data = await response.json();
+            
+            // Update local data
+            productsHot.setDataAtRowProp(categoriesEditingRow, 'categories', data.categories);
+            productsHot.setDataAtRowProp(categoriesEditingRow, 'category_ids', data.categories.map(c => c.id));
+            
+            closeCategoriesModal();
+            setStatus('products-status', 'Categorias atualizadas com sucesso!', 'success');
+        } catch (error) {
+            console.error('Erro ao salvar categorias:', error);
+            setStatus('products-status', 'Erro ao salvar categorias: ' + error.message, 'error');
+        }
     }
     
     function addProductRow() {

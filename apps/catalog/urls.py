@@ -33,4 +33,8 @@ urlpatterns = [
     path('bulk-edit/variants/<int:variant_id>/images/upload/', views.variant_image_upload, name='variant_image_upload'),
     path('bulk-edit/images/<int:image_id>/delete/', views.variant_image_delete, name='variant_image_delete'),
     path('bulk-edit/images/<int:image_id>/set-primary/', views.variant_image_set_primary, name='variant_image_set_primary'),
+    
+    # Categories
+    path('bulk-edit/categories/search/', views.categories_search, name='categories_search'),
+    path('bulk-edit/products/<int:product_id>/categories/', views.product_categories_update, name='product_categories_update'),
 ]
