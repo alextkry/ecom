@@ -180,6 +180,173 @@ def bulk_products_data(request):
     return JsonResponse({'data': data})
 
 
+def _process_product_json_data(product, item):
+    """
+    Process JSON data for attributes, variants, and groups.
+    Creates/updates related entities based on the JSON data.
+    """
+    attributes_json = item.get('attributes_json')
+    variants_json = item.get('variants_json')
+    groups_json = item.get('groups_json')
+    
+    print(f"[JSON PROCESS] Product {product.id} ({product.name})")
+    print(f"  - attributes_json: {attributes_json}")
+    print(f"  - variants_json: {variants_json}")
+    print(f"  - groups_json: {groups_json}")
+    
+    # Skip if no JSON data provided
+    if not any([attributes_json, variants_json, groups_json]):
+        print("  - No JSON data to process, skipping")
+        return
+    
+    print("  - Processing JSON data...")
+    
+    # Process attributes - create AttributeTypes and AttributeOptions
+    attr_type_map = {}  # {attr_name: {value: AttributeOption}}
+    
+    if attributes_json:
+        for attr_data in attributes_json:
+            attr_name = attr_data.get('atributo', '').strip()
+            valores = attr_data.get('valores', [])
+            
+            if not attr_name or not valores:
+                continue
+            
+            # Get or create AttributeType
+            attr_slug = slugify(attr_name)
+            attr_type, _ = AttributeType.objects.get_or_create(
+                slug=attr_slug,
+                defaults={'name': attr_name, 'datatype': 'text'}
+            )
+            
+            attr_type_map[attr_name.lower()] = {}
+            
+            # Get or create AttributeOptions
+            for valor in valores:
+                valor = str(valor).strip()
+                if valor:
+                    option, _ = AttributeOption.objects.get_or_create(
+                        attribute_type=attr_type,
+                        value=valor,
+                        defaults={'display_value': valor}
+                    )
+                    attr_type_map[attr_name.lower()][valor.lower()] = option
+    
+    # Process variants - create/update Variants with their attributes
+    if variants_json:
+        existing_skus = set(product.variants.values_list('sku', flat=True))
+        new_skus = set()
+        
+        for var_data in variants_json:
+            sku = var_data.get('sku', '').strip()
+            if not sku:
+                continue
+            
+            new_skus.add(sku)
+            
+            # Get or create variant
+            variant, created = Variant.objects.get_or_create(
+                product=product,
+                sku=sku,
+                defaults={
+                    'name': var_data.get('nome', sku),
+                    'cost_price': Decimal(str(var_data['preco_custo'])) if var_data.get('preco_custo') else None,
+                    'sell_price': Decimal(str(var_data['preco_venda'])) if var_data.get('preco_venda') else Decimal('0'),
+                    'stock_quantity': var_data.get('estoque', 0),
+                    'is_active': True,
+                }
+            )
+            
+            if not created:
+                # Update existing variant
+                variant.name = var_data.get('nome', variant.name)
+                if var_data.get('preco_custo') is not None:
+                    variant.cost_price = Decimal(str(var_data['preco_custo']))
+                if var_data.get('preco_venda') is not None:
+                    variant.sell_price = Decimal(str(var_data['preco_venda']))
+                if var_data.get('estoque') is not None:
+                    variant.stock_quantity = var_data['estoque']
+                variant.save()
+            
+            # Process variant attributes
+            # Clear existing attributes for this variant
+            VariantAttribute.objects.filter(variant=variant).delete()
+            
+            # Add new attributes from JSON
+            for attr_name, options_map in attr_type_map.items():
+                # Look for attribute value in variant data using slugified key
+                attr_slug = attr_name.replace(' ', '_')
+                attr_value = var_data.get(attr_slug, '')
+                
+                if attr_value:
+                    option = options_map.get(str(attr_value).lower())
+                    if option:
+                        VariantAttribute.objects.create(
+                            variant=variant,
+                            attribute_option=option
+                        )
+        
+        # Delete variants that are no longer in the JSON
+        # Only if variants_json was provided and has data
+        if new_skus:
+            skus_to_delete = existing_skus - new_skus
+            if skus_to_delete:
+                Variant.objects.filter(product=product, sku__in=skus_to_delete).delete()
+    
+    # Process groups - create/update VariantGroups
+    if groups_json:
+        existing_group_slugs = set(product.variant_groups.values_list('slug', flat=True))
+        new_group_slugs = set()
+        
+        for grp_data in groups_json:
+            nome = grp_data.get('nome', '').strip()
+            if not nome:
+                continue
+            
+            grp_slug = grp_data.get('slug', '').strip() or slugify(nome)
+            new_group_slugs.add(grp_slug)
+            
+            # Get or create group
+            group, created = VariantGroup.objects.get_or_create(
+                product=product,
+                slug=grp_slug,
+                defaults={
+                    'name': nome,
+                    'description': grp_data.get('descricao', ''),
+                    'is_active': True,
+                }
+            )
+            
+            if not created:
+                group.name = nome
+                group.description = grp_data.get('descricao', '')
+                group.save()
+            
+            # Update group members
+            variant_skus = grp_data.get('variantes', [])
+            if variant_skus:
+                # Clear existing members
+                VariantGroupMembership.objects.filter(variant_group=group).delete()
+                
+                # Add new members
+                for sku in variant_skus:
+                    sku = sku.strip()
+                    try:
+                        variant = Variant.objects.get(product=product, sku=sku)
+                        VariantGroupMembership.objects.create(
+                            variant_group=group,
+                            variant=variant
+                        )
+                    except Variant.DoesNotExist:
+                        pass
+        
+        # Delete groups that are no longer in the JSON
+        if new_group_slugs:
+            slugs_to_delete = existing_group_slugs - new_group_slugs
+            if slugs_to_delete:
+                VariantGroup.objects.filter(product=product, slug__in=slugs_to_delete).delete()
+
+
 @staff_member_required
 @require_http_methods(["POST"])
 @csrf_protect
@@ -187,6 +354,7 @@ def bulk_products_save(request):
     """API endpoint to create/update products."""
     try:
         payload = json.loads(request.body)
+        print(f"[BULK SAVE] Received payload: create={len(payload.get('create', []))}, update={len(payload.get('update', []))}")
     except json.JSONDecodeError:
         return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
     
@@ -216,10 +384,14 @@ def bulk_products_save(request):
                     is_active=item.get('is_active', True)
                 )
                 
-                # If SKU is provided for new product, create inline variant
+                product = Product.objects.get(slug=slug)
+                
+                # Process JSON data if provided
+                _process_product_json_data(product, item)
+                
+                # If SKU is provided for new product (and no variants_json), create inline variant
                 sku = item.get('sku', '').strip()
-                if sku and not Variant.objects.filter(sku=sku).exists():
-                    product = Product.objects.get(slug=slug)
+                if sku and not item.get('variants_json') and not Variant.objects.filter(sku=sku).exists():
                     Variant.objects.create(
                         product=product,
                         sku=sku,
@@ -246,8 +418,12 @@ def bulk_products_save(request):
                 product.is_active = item.get('is_active', True)
                 product.save()
                 
+                # Process JSON data if provided
+                _process_product_json_data(product, item)
+                
                 # Handle inline variant data for products without multiple variants
-                if not item.get('has_variants', False):
+                # Skip if variants_json was provided (those take precedence)
+                if not item.get('has_variants', False) and not item.get('variants_json'):
                     variant_id = item.get('variant_id')
                     sku = item.get('sku', '').strip()
                     
@@ -282,7 +458,8 @@ def bulk_products_save(request):
             except Product.DoesNotExist:
                 errors.append(f"Produto ID {item.get('id')} não encontrado")
             except Exception as e:
-                errors.append(f"Erro ao atualizar ID {item.get('id')}: {str(e)}")
+                import traceback
+                errors.append(f"Erro ao atualizar ID {item.get('id')}: {str(e)} - {traceback.format_exc()}")
     
     return JsonResponse({
         'status': 'ok',

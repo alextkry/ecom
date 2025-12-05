@@ -104,8 +104,14 @@ Nos produtos com variantes, eu pensei que talvez fosse interessante que contesse
 Por exemplo, teria uma coluna "atributos" e nesta coluna eu poderia já informar os atributos daquele produto. Por exemplo:  [{atributo: cor, valores: [azul, vermelho, verde]}, {atributo: tamanho, valores: [P, M, G]}, {atributo: comprimento, valores: {30, 32, 34}]. Uma outra coluna variante com: [{nome: "Variante 1", cor: azul, tamanho: P, comprimento: 30}, {nome: "Variante 2", cor: vermelho, tamanho: M, comprimento: 32}]. Outra para os grupos de produto. Neste caso eu poderia ter as informações suficientes em uma única tabela para poder popular todas as demais referentes àquele produto.
 
 
-
 # Specifications v1.0.6
+
+Eu acho que seria interessante se gerassemos as tabelas dinamicamente de variantes, grupos e atributos à partir desta informação implicita (json) de cada produto embutido em cada célula destas colunas e que ao salvar estas edições apenas alterassemos o valor deste json e que seria persistido no banco de dados após salvar o produto.
+
+Neste caso, eu não vejo a necessidade de tooltips mostrando o json destas células, mas ao clickar nestas células apareceria esta funcionalidade de editar aquele json através de uma outra tabela construida a partir dele e que salva os resultados nele.
+
+
+# Specifications v1.0.7
 
 
 Também seria bom que ao selecionar um produto específico na tab de variantes, 

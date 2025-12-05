@@ -451,6 +451,57 @@
     </div>
 </div>
 
+<!-- Modal: Edit Attributes JSON -->
+<div id="json-attributes-modal" class="modal">
+    <div class="modal-content" style="max-width: 800px; max-height: 80vh; display: flex; flex-direction: column;">
+        <h3>⚙️ Editar Atributos do Produto: <span id="json-attr-product-name"></span></h3>
+        <p style="font-size: 12px; color: #666; margin-bottom: 10px;">
+            Defina os tipos de atributos e seus valores possíveis. Ex: Cor com valores [azul, vermelho, verde]
+        </p>
+        <div style="flex: 1; overflow: auto; min-height: 200px;">
+            <div id="json-attributes-grid" style="width: 100%; height: 250px;"></div>
+        </div>
+        <div class="modal-buttons">
+            <button type="button" class="secondary" onclick="closeJsonAttributesModal()">Cancelar</button>
+            <button type="button" class="success" onclick="saveJsonAttributes()">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Edit Variants JSON -->
+<div id="json-variants-modal" class="modal">
+    <div class="modal-content" style="max-width: 95vw; max-height: 85vh; display: flex; flex-direction: column;">
+        <h3>🏷️ Editar Variantes do Produto: <span id="json-var-product-name"></span></h3>
+        <p style="font-size: 12px; color: #666; margin-bottom: 10px;">
+            Edite as variantes. As colunas de atributos são geradas automaticamente a partir dos atributos definidos.
+        </p>
+        <div style="flex: 1; overflow: auto; min-height: 300px;">
+            <div id="json-variants-grid" style="width: 100%; height: 400px;"></div>
+        </div>
+        <div class="modal-buttons">
+            <button type="button" class="secondary" onclick="closeJsonVariantsModal()">Cancelar</button>
+            <button type="button" class="success" onclick="saveJsonVariants()">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Edit Groups JSON -->
+<div id="json-groups-modal" class="modal">
+    <div class="modal-content" style="max-width: 900px; max-height: 80vh; display: flex; flex-direction: column;">
+        <h3>📁 Editar Grupos do Produto: <span id="json-grp-product-name"></span></h3>
+        <p style="font-size: 12px; color: #666; margin-bottom: 10px;">
+            Defina grupos de variantes. Na coluna "variantes", liste os SKUs separados por vírgula.
+        </p>
+        <div style="flex: 1; overflow: auto; min-height: 200px;">
+            <div id="json-groups-grid" style="width: 100%; height: 250px;"></div>
+        </div>
+        <div class="modal-buttons">
+            <button type="button" class="secondary" onclick="closeJsonGroupsModal()">Cancelar</button>
+            <button type="button" class="success" onclick="saveJsonGroups()">Salvar</button>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/handsontable@14/dist/handsontable.full.min.js"></script>
 <script>
     const csrfToken = '{{ csrf_token }}';
@@ -460,6 +511,12 @@
     let currentProductId = null;
     let currentAttrTypeId = null;
     let currentImageVariantId = null;
+    
+    // JSON editor instances
+    let jsonAttributesHot = null;
+    let jsonVariantsHot = null;
+    let jsonGroupsHot = null;
+    let jsonEditingRow = null;  // Row index being edited in products table
     
     // Track new rows
     let newProductRows = new Set();
@@ -642,25 +699,28 @@
             }
         }
         
-        // JSON renderers for attributes, variants, groups
+        // JSON renderers for attributes, variants, groups - clickable to edit
         function jsonAttributesRenderer(instance, td, row, col, prop, value, cellProperties) {
             td.style.fontSize = '11px';
             td.style.whiteSpace = 'nowrap';
             td.style.overflow = 'hidden';
             td.style.textOverflow = 'ellipsis';
+            td.style.cursor = 'pointer';
             
             if (!value || value.length === 0) {
-                td.innerHTML = '<span style="color:#999;">-</span>';
-                return;
+                td.innerHTML = '<span style="color:#666;text-decoration:underline;">+ Adicionar</span>';
+            } else {
+                // Show compact view: "Cor(3) Tamanho(4) ..."
+                const summary = value.map(attr => 
+                    `<span style="background:#e3f2fd;padding:1px 4px;border-radius:3px;margin-right:3px;">${attr.atributo}(${attr.valores.length})</span>`
+                ).join('');
+                td.innerHTML = summary;
             }
             
-            // Show compact view: "Cor(3) Tamanho(4) ..."
-            const summary = value.map(attr => 
-                `<span style="background:#e3f2fd;padding:1px 4px;border-radius:3px;margin-right:3px;">${attr.atributo}(${attr.valores.length})</span>`
-            ).join('');
-            
-            td.innerHTML = summary;
-            td.title = JSON.stringify(value, null, 2);
+            td.onclick = function(e) {
+                e.stopPropagation();
+                openJsonAttributesModal(row);
+            };
         }
         
         function jsonVariantsRenderer(instance, td, row, col, prop, value, cellProperties) {
@@ -668,17 +728,21 @@
             td.style.whiteSpace = 'nowrap';
             td.style.overflow = 'hidden';
             td.style.textOverflow = 'ellipsis';
+            td.style.cursor = 'pointer';
             
             if (!value || value.length === 0) {
-                td.innerHTML = '<span style="color:#999;">-</span>';
-                return;
+                td.innerHTML = '<span style="color:#666;text-decoration:underline;">+ Adicionar</span>';
+            } else {
+                // Show count and first few SKUs
+                const skus = value.slice(0, 3).map(v => v.sku).join(', ');
+                const more = value.length > 3 ? ` +${value.length - 3}` : '';
+                td.innerHTML = `<span style="color:#417690;">${value.length}:</span> ${skus}${more}`;
             }
             
-            // Show count and first few SKUs
-            const skus = value.slice(0, 3).map(v => v.sku).join(', ');
-            const more = value.length > 3 ? ` +${value.length - 3}` : '';
-            td.innerHTML = `<span style="color:#417690;">${value.length}:</span> ${skus}${more}`;
-            td.title = JSON.stringify(value, null, 2);
+            td.onclick = function(e) {
+                e.stopPropagation();
+                openJsonVariantsModal(row);
+            };
         }
         
         function jsonGroupsRenderer(instance, td, row, col, prop, value, cellProperties) {
@@ -686,19 +750,22 @@
             td.style.whiteSpace = 'nowrap';
             td.style.overflow = 'hidden';
             td.style.textOverflow = 'ellipsis';
+            td.style.cursor = 'pointer';
             
             if (!value || value.length === 0) {
-                td.innerHTML = '<span style="color:#999;">-</span>';
-                return;
+                td.innerHTML = '<span style="color:#666;text-decoration:underline;">+ Adicionar</span>';
+            } else {
+                // Show group names
+                const names = value.map(g => 
+                    `<span style="background:#fff3e0;padding:1px 4px;border-radius:3px;margin-right:3px;">${g.nome}</span>`
+                ).join('');
+                td.innerHTML = names;
             }
             
-            // Show group names
-            const names = value.map(g => 
-                `<span style="background:#fff3e0;padding:1px 4px;border-radius:3px;margin-right:3px;">${g.nome}</span>`
-            ).join('');
-            
-            td.innerHTML = names;
-            td.title = JSON.stringify(value, null, 2);
+            td.onclick = function(e) {
+                e.stopPropagation();
+                openJsonGroupsModal(row);
+            };
         }
         
         productsHot = new Handsontable(container, {
@@ -798,6 +865,297 @@
         document.querySelector('.tab[onclick*="attributes"]').click();
     }
     
+    // =============================================================================
+    // JSON EDITORS
+    // =============================================================================
+    
+    function openJsonAttributesModal(row) {
+        jsonEditingRow = row;
+        const rowData = productsHot.getSourceDataAtRow(row);
+        document.getElementById('json-attr-product-name').textContent = rowData.name || 'Novo Produto';
+        
+        // Get current attributes or empty array
+        let attributes = rowData.attributes_json || [];
+        
+        // Convert to flat format for editing
+        const flatData = attributes.map(attr => ({
+            atributo: attr.atributo,
+            valores: attr.valores.join(', ')
+        }));
+        
+        // Add empty row if empty
+        if (flatData.length === 0) {
+            flatData.push({atributo: '', valores: ''});
+        }
+        
+        const container = document.getElementById('json-attributes-grid');
+        
+        if (jsonAttributesHot) {
+            jsonAttributesHot.destroy();
+        }
+        
+        jsonAttributesHot = new Handsontable(container, {
+            data: flatData,
+            colHeaders: ['Atributo (ex: Cor)', 'Valores (separados por vírgula)'],
+            columns: [
+                {data: 'atributo', width: 200},
+                {data: 'valores', width: 400},
+            ],
+            rowHeaders: true,
+            contextMenu: ['row_above', 'row_below', 'remove_row'],
+            minSpareRows: 1,
+            height: 250,
+            stretchH: 'all',
+            licenseKey: 'non-commercial-and-evaluation',
+        });
+        
+        document.getElementById('json-attributes-modal').style.display = 'block';
+    }
+    
+    function closeJsonAttributesModal() {
+        document.getElementById('json-attributes-modal').style.display = 'none';
+        if (jsonAttributesHot) {
+            jsonAttributesHot.destroy();
+            jsonAttributesHot = null;
+        }
+    }
+    
+    function saveJsonAttributes() {
+        if (!jsonAttributesHot || jsonEditingRow === null) return;
+        
+        const data = jsonAttributesHot.getSourceData();
+        const attributes = [];
+        
+        data.forEach(row => {
+            if (row.atributo && row.atributo.trim()) {
+                const valores = row.valores ? row.valores.split(',').map(v => v.trim()).filter(v => v) : [];
+                if (valores.length > 0) {
+                    attributes.push({
+                        atributo: row.atributo.trim(),
+                        valores: valores
+                    });
+                }
+            }
+        });
+        
+        // Update the products table
+        productsHot.setDataAtRowProp(jsonEditingRow, 'attributes_json', attributes.length > 0 ? attributes : null);
+        
+        closeJsonAttributesModal();
+    }
+    
+    function openJsonVariantsModal(row) {
+        jsonEditingRow = row;
+        const rowData = productsHot.getSourceDataAtRow(row);
+        document.getElementById('json-var-product-name').textContent = rowData.name || 'Novo Produto';
+        
+        // Get attributes to build dynamic columns
+        const attributes = rowData.attributes_json || [];
+        const variants = rowData.variants_json || [];
+        
+        // Build columns based on attributes
+        const columns = [
+            {data: 'sku', width: 120},
+            {data: 'nome', width: 150},
+        ];
+        const colHeaders = ['SKU *', 'Nome'];
+        
+        // Add attribute columns
+        attributes.forEach(attr => {
+            const slug = attr.atributo.toLowerCase().replace(/\s+/g, '_');
+            columns.push({
+                data: slug,
+                type: 'dropdown',
+                source: attr.valores,
+                width: 100
+            });
+            colHeaders.push(attr.atributo);
+        });
+        
+        // Add price and stock columns
+        columns.push(
+            {data: 'preco_custo', type: 'numeric', numericFormat: {pattern: '0.00'}, width: 100},
+            {data: 'preco_venda', type: 'numeric', numericFormat: {pattern: '0.00'}, width: 100},
+            {data: 'estoque', type: 'numeric', width: 80}
+        );
+        colHeaders.push('Preço Custo', 'Preço Venda', 'Estoque');
+        
+        // Convert variants to flat format with slugified attribute keys
+        const flatData = variants.map(v => {
+            const row = {
+                sku: v.sku || '',
+                nome: v.nome || '',
+                preco_custo: v.preco_custo,
+                preco_venda: v.preco_venda,
+                estoque: v.estoque || 0
+            };
+            // Copy attribute values using slugified keys
+            attributes.forEach(attr => {
+                const slug = attr.atributo.toLowerCase().replace(/\s+/g, '_');
+                // Try to find value with original key or slug
+                row[slug] = v[slug] || v[attr.atributo] || '';
+            });
+            return row;
+        });
+        
+        // Add empty row if empty
+        if (flatData.length === 0) {
+            const emptyRow = {sku: '', nome: '', preco_custo: null, preco_venda: null, estoque: 0};
+            attributes.forEach(attr => {
+                const slug = attr.atributo.toLowerCase().replace(/\s+/g, '_');
+                emptyRow[slug] = '';
+            });
+            flatData.push(emptyRow);
+        }
+        
+        const container = document.getElementById('json-variants-grid');
+        
+        if (jsonVariantsHot) {
+            jsonVariantsHot.destroy();
+        }
+        
+        jsonVariantsHot = new Handsontable(container, {
+            data: flatData,
+            colHeaders: colHeaders,
+            columns: columns,
+            rowHeaders: true,
+            contextMenu: ['row_above', 'row_below', 'remove_row', '---------', 'copy', 'cut'],
+            minSpareRows: 1,
+            height: 400,
+            stretchH: 'all',
+            copyPaste: true,
+            fillHandle: true,
+            licenseKey: 'non-commercial-and-evaluation',
+        });
+        
+        // Store attribute info for saving
+        jsonVariantsHot.attributeNames = attributes.map(a => ({
+            name: a.atributo,
+            slug: a.atributo.toLowerCase().replace(/\s+/g, '_')
+        }));
+        
+        document.getElementById('json-variants-modal').style.display = 'block';
+    }
+    
+    function closeJsonVariantsModal() {
+        document.getElementById('json-variants-modal').style.display = 'none';
+        if (jsonVariantsHot) {
+            jsonVariantsHot.destroy();
+            jsonVariantsHot = null;
+        }
+    }
+    
+    function saveJsonVariants() {
+        if (!jsonVariantsHot || jsonEditingRow === null) return;
+        
+        const data = jsonVariantsHot.getSourceData();
+        const attributeNames = jsonVariantsHot.attributeNames || [];
+        const variants = [];
+        
+        data.forEach(row => {
+            if (row.sku && row.sku.trim()) {
+                const variant = {
+                    sku: row.sku.trim(),
+                    nome: row.nome || row.sku.trim(),
+                    preco_custo: row.preco_custo,
+                    preco_venda: row.preco_venda,
+                    estoque: row.estoque || 0
+                };
+                // Add attribute values using slugified keys
+                attributeNames.forEach(attr => {
+                    if (row[attr.slug]) {
+                        variant[attr.slug] = row[attr.slug];
+                    }
+                });
+                variants.push(variant);
+            }
+        });
+        
+        // Update the products table
+        productsHot.setDataAtRowProp(jsonEditingRow, 'variants_json', variants.length > 0 ? variants : null);
+        
+        closeJsonVariantsModal();
+    }
+    
+    function openJsonGroupsModal(row) {
+        jsonEditingRow = row;
+        const rowData = productsHot.getSourceDataAtRow(row);
+        document.getElementById('json-grp-product-name').textContent = rowData.name || 'Novo Produto';
+        
+        // Get current groups
+        const groups = rowData.groups_json || [];
+        
+        // Convert to flat format
+        const flatData = groups.map(g => ({
+            nome: g.nome,
+            slug: g.slug || '',
+            descricao: g.descricao || '',
+            variantes: g.variantes ? g.variantes.join(', ') : ''
+        }));
+        
+        // Add empty row if empty
+        if (flatData.length === 0) {
+            flatData.push({nome: '', slug: '', descricao: '', variantes: ''});
+        }
+        
+        const container = document.getElementById('json-groups-grid');
+        
+        if (jsonGroupsHot) {
+            jsonGroupsHot.destroy();
+        }
+        
+        jsonGroupsHot = new Handsontable(container, {
+            data: flatData,
+            colHeaders: ['Nome do Grupo *', 'Slug', 'Descrição', 'SKUs das Variantes (separados por vírgula)'],
+            columns: [
+                {data: 'nome', width: 180},
+                {data: 'slug', width: 150},
+                {data: 'descricao', width: 200},
+                {data: 'variantes', width: 300},
+            ],
+            rowHeaders: true,
+            contextMenu: ['row_above', 'row_below', 'remove_row'],
+            minSpareRows: 1,
+            height: 250,
+            stretchH: 'all',
+            licenseKey: 'non-commercial-and-evaluation',
+        });
+        
+        document.getElementById('json-groups-modal').style.display = 'block';
+    }
+    
+    function closeJsonGroupsModal() {
+        document.getElementById('json-groups-modal').style.display = 'none';
+        if (jsonGroupsHot) {
+            jsonGroupsHot.destroy();
+            jsonGroupsHot = null;
+        }
+    }
+    
+    function saveJsonGroups() {
+        if (!jsonGroupsHot || jsonEditingRow === null) return;
+        
+        const data = jsonGroupsHot.getSourceData();
+        const groups = [];
+        
+        data.forEach(row => {
+            if (row.nome && row.nome.trim()) {
+                const variantes = row.variantes ? row.variantes.split(',').map(v => v.trim()).filter(v => v) : [];
+                groups.push({
+                    nome: row.nome.trim(),
+                    slug: row.slug ? row.slug.trim() : row.nome.trim().toLowerCase().replace(/\s+/g, '-'),
+                    descricao: row.descricao || '',
+                    variantes: variantes
+                });
+            }
+        });
+        
+        // Update the products table
+        productsHot.setDataAtRowProp(jsonEditingRow, 'groups_json', groups.length > 0 ? groups : null);
+        
+        closeJsonGroupsModal();
+    }
+    
     function addProductRow() {
         if (!productsHot) {
             loadProducts();
@@ -827,7 +1185,11 @@
                     cost_price: row.cost_price,
                     sell_price: row.sell_price,
                     compare_at_price: row.compare_at_price,
-                    stock_quantity: row.stock_quantity || 0
+                    stock_quantity: row.stock_quantity || 0,
+                    // JSON data
+                    attributes_json: row.attributes_json || null,
+                    variants_json: row.variants_json || null,
+                    groups_json: row.groups_json || null
                 });
             } else {
                 toUpdate.push({
@@ -843,10 +1205,17 @@
                     cost_price: row.cost_price,
                     sell_price: row.sell_price,
                     compare_at_price: row.compare_at_price,
-                    stock_quantity: row.stock_quantity || 0
+                    stock_quantity: row.stock_quantity || 0,
+                    // JSON data
+                    attributes_json: row.attributes_json || null,
+                    variants_json: row.variants_json || null,
+                    groups_json: row.groups_json || null
                 });
             }
         });
+        
+        console.log('Saving products - Create:', toCreate);
+        console.log('Saving products - Update:', toUpdate);
         
         setStatus('products-status', 'Salvando...', 'info');
         
@@ -860,9 +1229,14 @@
         })
         .then(response => response.json())
         .then(result => {
+            console.log('Save result:', result);
             if (result.status === 'ok') {
-                setStatus('products-status', 
-                    `✓ ${result.created} criado(s), ${result.updated} atualizado(s)`, 'success');
+                let msg = `✓ ${result.created} criado(s), ${result.updated} atualizado(s)`;
+                if (result.errors && result.errors.length > 0) {
+                    msg += ` (${result.errors.length} erro(s))`;
+                    console.error('Save errors:', result.errors);
+                }
+                setStatus('products-status', msg, 'success');
                 newProductRows.clear();
                 loadProducts(); // Reload to get IDs
             } else {
