@@ -642,9 +642,68 @@
             }
         }
         
+        // JSON renderers for attributes, variants, groups
+        function jsonAttributesRenderer(instance, td, row, col, prop, value, cellProperties) {
+            td.style.fontSize = '11px';
+            td.style.whiteSpace = 'nowrap';
+            td.style.overflow = 'hidden';
+            td.style.textOverflow = 'ellipsis';
+            
+            if (!value || value.length === 0) {
+                td.innerHTML = '<span style="color:#999;">-</span>';
+                return;
+            }
+            
+            // Show compact view: "Cor(3) Tamanho(4) ..."
+            const summary = value.map(attr => 
+                `<span style="background:#e3f2fd;padding:1px 4px;border-radius:3px;margin-right:3px;">${attr.atributo}(${attr.valores.length})</span>`
+            ).join('');
+            
+            td.innerHTML = summary;
+            td.title = JSON.stringify(value, null, 2);
+        }
+        
+        function jsonVariantsRenderer(instance, td, row, col, prop, value, cellProperties) {
+            td.style.fontSize = '11px';
+            td.style.whiteSpace = 'nowrap';
+            td.style.overflow = 'hidden';
+            td.style.textOverflow = 'ellipsis';
+            
+            if (!value || value.length === 0) {
+                td.innerHTML = '<span style="color:#999;">-</span>';
+                return;
+            }
+            
+            // Show count and first few SKUs
+            const skus = value.slice(0, 3).map(v => v.sku).join(', ');
+            const more = value.length > 3 ? ` +${value.length - 3}` : '';
+            td.innerHTML = `<span style="color:#417690;">${value.length}:</span> ${skus}${more}`;
+            td.title = JSON.stringify(value, null, 2);
+        }
+        
+        function jsonGroupsRenderer(instance, td, row, col, prop, value, cellProperties) {
+            td.style.fontSize = '11px';
+            td.style.whiteSpace = 'nowrap';
+            td.style.overflow = 'hidden';
+            td.style.textOverflow = 'ellipsis';
+            
+            if (!value || value.length === 0) {
+                td.innerHTML = '<span style="color:#999;">-</span>';
+                return;
+            }
+            
+            // Show group names
+            const names = value.map(g => 
+                `<span style="background:#fff3e0;padding:1px 4px;border-radius:3px;margin-right:3px;">${g.nome}</span>`
+            ).join('');
+            
+            td.innerHTML = names;
+            td.title = JSON.stringify(value, null, 2);
+        }
+        
         productsHot = new Handsontable(container, {
             data: jsonData.data,
-            colHeaders: ['', 'ID', 'Nome', 'Slug', 'Descrição', 'SKU', 'Preço Custo', 'Preço Venda', 'Estoque', 'Ativo', 'Ações', 'Criado em'],
+            colHeaders: ['', 'ID', 'Nome', 'Slug', 'Descrição', 'SKU', 'Preço Custo', 'Preço Venda', 'Estoque', 'Ativo', 'Ações', 'Atributos', 'Variantes', 'Grupos', 'Criado em'],
             columns: [
                 {data: 'thumbnail_url', renderer: thumbnailRenderer, readOnly: true, width: 60},
                 {data: 'id', readOnly: true, width: 50},
@@ -656,7 +715,10 @@
                 {data: 'sell_price', type: 'numeric', numericFormat: {pattern: '0,0.00'}, width: 100, renderer: variantSellPriceRenderer},
                 {data: 'stock_quantity', type: 'numeric', width: 80, renderer: variantStockRenderer},
                 {data: 'is_active', type: 'checkbox', width: 60},
-                {data: 'id', renderer: linksRenderer, readOnly: true, width: 150},
+                {data: 'id', renderer: linksRenderer, readOnly: true, width: 130},
+                {data: 'attributes_json', renderer: jsonAttributesRenderer, readOnly: true, width: 150},
+                {data: 'variants_json', renderer: jsonVariantsRenderer, readOnly: true, width: 180},
+                {data: 'groups_json', renderer: jsonGroupsRenderer, readOnly: true, width: 150},
                 {data: 'created_at', readOnly: true, width: 130},
             ],
             rowHeaders: true,

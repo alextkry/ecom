@@ -48,7 +48,8 @@ def bulk_products_data(request):
     
     products = Product.objects.prefetch_related(
         'variants__images',
-        'variant_groups'
+        'variants__variantattribute_set__attribute_option__attribute_type',
+        'variant_groups__variants'
     ).all().order_by('name')
     
     data = []
@@ -79,7 +80,59 @@ def bulk_products_data(request):
             # Stats fields (for products with multiple variants)
             'price_stats': None,
             'stock_stats': None,
+            # JSON data columns
+            'attributes_json': None,
+            'variants_json': None,
+            'groups_json': None,
         }
+        
+        # Build attributes JSON - aggregate all attribute types and their values
+        attributes_dict = {}
+        for variant in product.variants.all():
+            for va in variant.variantattribute_set.all():
+                attr_name = va.attribute_option.attribute_type.name
+                attr_value = va.attribute_option.value
+                if attr_name not in attributes_dict:
+                    attributes_dict[attr_name] = set()
+                attributes_dict[attr_name].add(attr_value)
+        
+        if attributes_dict:
+            row['attributes_json'] = [
+                {'atributo': name, 'valores': sorted(list(values))}
+                for name, values in sorted(attributes_dict.items())
+            ]
+        
+        # Build variants JSON
+        variants_list = []
+        for variant in product.variants.all():
+            v_data = {
+                'sku': variant.sku,
+                'nome': variant.name or variant.sku,
+                'preco_custo': float(variant.cost_price) if variant.cost_price else None,
+                'preco_venda': float(variant.sell_price) if variant.sell_price else None,
+                'estoque': variant.stock_quantity,
+            }
+            # Add attributes
+            for va in variant.variantattribute_set.all():
+                v_data[va.attribute_option.attribute_type.slug] = va.attribute_option.value
+            variants_list.append(v_data)
+        
+        if variants_list:
+            row['variants_json'] = variants_list
+        
+        # Build groups JSON
+        groups_list = []
+        for group in product.variant_groups.all():
+            g_data = {
+                'nome': group.name,
+                'slug': group.slug,
+                'descricao': group.description or '',
+                'variantes': [v.sku for v in group.variants.all()],
+            }
+            groups_list.append(g_data)
+        
+        if groups_list:
+            row['groups_json'] = groups_list
         
         # If product has 0 or 1 variant, include variant data inline
         if variant_count <= 1:

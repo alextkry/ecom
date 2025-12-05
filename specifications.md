@@ -87,8 +87,25 @@ Também seria bom que na tabela mostrasse também as imagens (thumbnails) de cad
 
 # Specifications v1.0.3
 
-O botão de "Adicionar a Grupo" não está funcionando, mesmo após selecionar as linhas que desejo usar para formar um novo grupo o sistema diz: "Selecione pelo menos uma linha".
-Além disso, seria bom que o sistema também tivesse uma tab contendo os grupos de produtos.
+Seria bom que o sistema também tivesse uma tab contendo os grupos de produtos.
+
+
+Na tab de variantes, ao apertar no botão de "Adicionar a Grupo" o sistema também deveria abrir uma tela onde eu pudesse preencher as informações daquele novo grupo (como o nome, o slug, a descrição e as imagens. Caso não seja feito o upload de imagem usar a imagem de alguma das variantes que faz parte dele).
 
 # Specifications v1.0.4
+
+Na tabela de produtos, para os produtos que não tem variantes, devem ser mostradas todas propriedades referentes às variantes (pois seria como se fosse um produto com uma única variante). Se um produto não tem variantes, eu não devo precisar ir na tab de variantes para, por exemplo, editar seu preço.
+
+Pensei que no caso de haver várias variantes, nas células de Preço e de Estoque do produto poderia mostrar estatísticas (max, min, avg) referentes aqueles campos das variantes. Então, por exemplo, mostrar o preço da variante mais barata (min) e o da mais cara (máx) e o preço médio, mostrar a que tem a menor quantidade de unidades em estoque (min), a quantidade máxima em estoque (max), a média e o somatório.
+
+# Specifications v1.0.5
+
+Nos produtos com variantes, eu pensei que talvez fosse interessante que contesse implicitamente as informações das variantes, grupos e atributos para que eu pudesse ter através de uma única tabela todas as informações referentes a eles e pudesse ser capaz de reconstruir as variantes, grupos, atributos através delas, pensei em objetos JSON...
+Por exemplo, teria uma coluna "atributos" e nesta coluna eu poderia já informar os atributos daquele produto. Por exemplo:  [{atributo: cor, valores: [azul, vermelho, verde]}, {atributo: tamanho, valores: [P, M, G]}, {atributo: comprimento, valores: {30, 32, 34}]. Uma outra coluna variante com: [{nome: "Variante 1", cor: azul, tamanho: P, comprimento: 30}, {nome: "Variante 2", cor: vermelho, tamanho: M, comprimento: 32}]. Outra para os grupos de produto. Neste caso eu poderia ter as informações suficientes em uma única tabela para poder popular todas as demais referentes àquele produto.
+
+
+
+# Specifications v1.0.6
+
+
 Também seria bom que ao selecionar um produto específico na tab de variantes, 
