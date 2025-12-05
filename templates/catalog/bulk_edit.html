@@ -853,9 +853,9 @@
                 // Show category names with different colors for hierarchy
                 const badges = value.map(c => {
                     // Check if category has a parent (is a subcategory)
-                    const isSubcategory = c.full_path && c.full_path.includes(' > ');
+                    const isSubcategory = c.pai || (c.full_path && c.full_path.includes(' > '));
                     const bgColor = isSubcategory ? '#e3f2fd' : '#e8f5e9';  // Blue for subcategory, green for root
-                    const displayName = c.name || 'Sem nome';
+                    const displayName = c.nome || c.name || 'Sem nome';
                     const tooltipPath = c.full_path || displayName;
                     return `<span style="background:${bgColor};padding:1px 4px;border-radius:3px;margin-right:3px;display:inline-block;" title="${tooltipPath}">${displayName}</span>`;
                 }).join('');
@@ -882,7 +882,7 @@
                 {data: 'sell_price', type: 'numeric', numericFormat: {pattern: '0,0.00'}, width: 100, renderer: variantSellPriceRenderer},
                 {data: 'stock_quantity', type: 'numeric', width: 80, renderer: variantStockRenderer},
                 {data: 'is_active', type: 'checkbox', width: 60},
-                {data: 'categories', renderer: categoriesRenderer, readOnly: true, width: 180},
+                {data: 'categories_json', renderer: categoriesRenderer, width: 180},
                 {data: 'id', renderer: linksRenderer, readOnly: true, width: 130},
                 {data: 'attributes_json', renderer: jsonAttributesRenderer, width: 150},
                 {data: 'variants_json', renderer: jsonVariantsRenderer, width: 180},
@@ -945,7 +945,7 @@
             
             // Handle copy for JSON columns - serialize to JSON string
             beforeCopy: function(data, coords) {
-                const jsonColumns = ['attributes_json', 'variants_json', 'groups_json'];
+                const jsonColumns = ['attributes_json', 'variants_json', 'groups_json', 'categories_json'];
                 
                 coords.forEach((coord, index) => {
                     for (let row = coord.startRow; row <= coord.endRow; row++) {
@@ -966,7 +966,7 @@
             
             // Handle paste for JSON columns - parse from JSON string
             beforePaste: function(data, coords) {
-                const jsonColumns = ['attributes_json', 'variants_json', 'groups_json'];
+                const jsonColumns = ['attributes_json', 'variants_json', 'groups_json', 'categories_json'];
                 
                 coords.forEach((coord) => {
                     for (let row = 0; row < data.length; row++) {
@@ -993,7 +993,7 @@
             // Allow editing JSON columns via paste
             beforeChange: function(changes, source) {
                 if (source === 'CopyPaste.paste') {
-                    const jsonColumns = ['attributes_json', 'variants_json', 'groups_json'];
+                    const jsonColumns = ['attributes_json', 'variants_json', 'groups_json', 'categories_json'];
                     
                     changes.forEach((change, index) => {
                         const [row, prop, oldValue, newValue] = change;
@@ -1323,11 +1323,11 @@
     }
     
     // =============================================================================
-    // CATEGORIES MODAL
+    // CATEGORIES MODAL (JSON-based)
     // =============================================================================
     let categoriesEditingRow = null;
-    let allCategories = [];  // Cache for all categories
-    let selectedCategoryIds = new Set();  // Currently selected category IDs
+    let allCategories = [];  // Cache for all categories from server
+    let selectedCategorySlugs = new Set();  // Currently selected category slugs
     
     async function openCategoriesModal(row) {
         categoriesEditingRow = row;
@@ -1338,38 +1338,28 @@
         document.getElementById('cat-product-name').textContent = productName;
         document.getElementById('category-search').value = '';
         
-        // Initialize selected categories from current data
-        selectedCategoryIds = new Set();
-        if (rowData.categories && rowData.categories.length > 0) {
-            rowData.categories.forEach(c => selectedCategoryIds.add(c.id));
-        }
+        // Initialize selected categories from current JSON data
+        selectedCategorySlugs = new Set();
+        const currentCategories = rowData.categories_json || [];
+        currentCategories.forEach(c => {
+            if (c.slug) selectedCategorySlugs.add(c.slug);
+        });
         
         // Show modal
         document.getElementById('categories-modal').style.display = 'block';
         
-        // Load categories with product_id if available
-        await loadCategories(productId);
+        // Load categories from server
+        await loadCategories();
         
         renderSelectedCategories();
         renderCategoriesList('');
     }
     
-    async function loadCategories(productId = null) {
+    async function loadCategories() {
         try {
-            let url = '/catalog/bulk-edit/categories/search/';
-            if (productId) {
-                url += `?product_id=${productId}`;
-            }
-            const response = await fetch(url);
+            const response = await fetch('/catalog/bulk-edit/categories/search/');
             const data = await response.json();
             allCategories = data.categories || [];
-            
-            // Update selectedCategoryIds based on server data
-            allCategories.forEach(cat => {
-                if (cat.selected) {
-                    selectedCategoryIds.add(cat.id);
-                }
-            });
         } catch (error) {
             console.error('Erro ao carregar categorias:', error);
             allCategories = [];
@@ -1383,16 +1373,16 @@
     function renderSelectedCategories() {
         const container = document.getElementById('selected-cats-container');
         
-        if (selectedCategoryIds.size === 0) {
+        if (selectedCategorySlugs.size === 0) {
             container.innerHTML = '<span style="color: #666; font-style: italic;">Nenhuma categoria selecionada</span>';
             return;
         }
         
-        const selectedCats = allCategories.filter(c => selectedCategoryIds.has(c.id));
+        const selectedCats = allCategories.filter(c => selectedCategorySlugs.has(c.slug));
         container.innerHTML = selectedCats.map(cat => `
-            <span style="display: inline-flex; align-items: center; background: #e3f2fd; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
+            <span style="display: inline-flex; align-items: center; background: #e3f2fd; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin: 2px;">
                 ${cat.full_path}
-                <button onclick="removeCategorySelection(${cat.id})" 
+                <button onclick="removeCategorySelection('${cat.slug}')" 
                         style="background: none; border: none; color: #666; cursor: pointer; margin-left: 5px; font-size: 14px;">×</button>
             </span>
         `).join('');
@@ -1415,25 +1405,21 @@
             return;
         }
         
-        // Group by parent for hierarchy display
-        const rootCategories = filtered.filter(c => !c.parent_id);
-        const childCategories = filtered.filter(c => c.parent_id);
-        
         let html = '';
         
         // Render categories with indentation based on level
         filtered.sort((a, b) => a.full_path.localeCompare(b.full_path)).forEach(cat => {
-            const isSelected = selectedCategoryIds.has(cat.id);
+            const isSelected = selectedCategorySlugs.has(cat.slug);
             const indent = cat.level * 20;
             const bgColor = isSelected ? '#e3f2fd' : 'transparent';
             
             html += `
                 <div style="padding: 8px; padding-left: ${indent + 8}px; background: ${bgColor}; border-bottom: 1px solid #f0f0f0; cursor: pointer;"
-                     onclick="toggleCategorySelection(${cat.id})">
+                     onclick="toggleCategorySelection('${cat.slug}')">
                     <label style="display: flex; align-items: center; cursor: pointer; margin: 0;">
                         <input type="checkbox" ${isSelected ? 'checked' : ''} 
                                style="margin-right: 8px;"
-                               onclick="event.stopPropagation(); toggleCategorySelection(${cat.id})">
+                               onclick="event.stopPropagation(); toggleCategorySelection('${cat.slug}')">
                         <span style="flex: 1;">
                             ${cat.level > 0 ? '└─ ' : ''}
                             <strong>${cat.name}</strong>
@@ -1447,18 +1433,18 @@
         container.innerHTML = html;
     }
     
-    function toggleCategorySelection(catId) {
-        if (selectedCategoryIds.has(catId)) {
-            selectedCategoryIds.delete(catId);
+    function toggleCategorySelection(slug) {
+        if (selectedCategorySlugs.has(slug)) {
+            selectedCategorySlugs.delete(slug);
         } else {
-            selectedCategoryIds.add(catId);
+            selectedCategorySlugs.add(slug);
         }
         renderSelectedCategories();
         renderCategoriesList(document.getElementById('category-search').value.toLowerCase().trim());
     }
     
-    function removeCategorySelection(catId) {
-        selectedCategoryIds.delete(catId);
+    function removeCategorySelection(slug) {
+        selectedCategorySlugs.delete(slug);
         renderSelectedCategories();
         renderCategoriesList(document.getElementById('category-search').value.toLowerCase().trim());
     }
@@ -1468,46 +1454,31 @@
         categoriesEditingRow = null;
     }
     
-    async function saveProductCategories() {
+    function saveProductCategories() {
         if (categoriesEditingRow === null) return;
         
-        const rowData = productsHot.getSourceDataAtRow(categoriesEditingRow);
-        const productId = rowData.id;
-        
-        if (!productId) {
-            alert('Salve o produto primeiro antes de adicionar categorias.');
-            closeCategoriesModal();
-            return;
-        }
-        
-        try {
-            const response = await fetch(`/catalog/bulk-edit/products/${productId}/categories/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken,
-                },
-                body: JSON.stringify({
-                    category_ids: Array.from(selectedCategoryIds)
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error('Erro ao salvar categorias');
+        // Build categories JSON from selected slugs
+        const categoriesJson = [];
+        allCategories.forEach(cat => {
+            if (selectedCategorySlugs.has(cat.slug)) {
+                categoriesJson.push({
+                    nome: cat.name,
+                    slug: cat.slug,
+                    full_path: cat.full_path,
+                    pai: cat.parent_slug || null,
+                });
             }
-            
-            const data = await response.json();
-            
-            // Update local data
-            productsHot.setDataAtRowProp(categoriesEditingRow, 'categories', data.categories);
-            productsHot.setDataAtRowProp(categoriesEditingRow, 'category_ids', data.categories.map(c => c.id));
-            
-            closeCategoriesModal();
-            setStatus('products-status', 'Categorias atualizadas com sucesso!', 'success');
-        } catch (error) {
-            console.error('Erro ao salvar categorias:', error);
-            setStatus('products-status', 'Erro ao salvar categorias: ' + error.message, 'error');
-        }
+        });
+        
+        // Update the products table with JSON data
+        productsHot.setDataAtRowProp(
+            categoriesEditingRow, 
+            'categories_json', 
+            categoriesJson.length > 0 ? categoriesJson : null
+        );
+        
+        closeCategoriesModal();
+        setStatus('products-status', 'Categorias atualizadas. Clique em "Salvar Alterações" para persistir.', 'info');
     }
     
     function addProductRow() {
@@ -1543,7 +1514,8 @@
                     // JSON data
                     attributes_json: row.attributes_json || null,
                     variants_json: row.variants_json || null,
-                    groups_json: row.groups_json || null
+                    groups_json: row.groups_json || null,
+                    categories_json: row.categories_json || null
                 });
             } else {
                 toUpdate.push({
@@ -1563,7 +1535,8 @@
                     // JSON data
                     attributes_json: row.attributes_json || null,
                     variants_json: row.variants_json || null,
-                    groups_json: row.groups_json || null
+                    groups_json: row.groups_json || null,
+                    categories_json: row.categories_json || null
                 });
             }
         });

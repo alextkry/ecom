@@ -120,5 +120,33 @@ Por exemplo:
 
 # Specifications v1.0.7
 
+Cada produto pode fazer parte de uma ou mais categorias ou subcategorias. E cada categoria pode ser uma subcategoria de uma categoria pai. Cada produto que faz parte de uma categoria filho também faz parte de suas categorias pai. Pode haver vários níveis de categoria (por exemplo: Pintura > Tinta > Tinta para Tecido). 
+E na tabela é bom que seja simples poder escolher a múltiplas categorias de um produto e fácil buscar pelas categorias existentes pois pode haver centenas. Eu pensei em uma espécie de multiselect com capacidade de search, mas aceito sugestões.
+
+Seria bom que as categorias referentes a um produto também fossem uma espécie de especificação JSON, de tal forma que eu pudesse copiar e colar de uma célula para outra e ele contesse as informações de cada uma das categorias. Por exemplo: {Categorias: [{nome: "Nome da Categoria X", slug: "slug da Categoria X"}, {nome: "Nome da Categoria Y", slug: "slug da Categoria Y"}]}. Também seria bom que a partir destas especificações JSON na tabela, o sistema veficasse quais destas categorias já existem para atribuir os produtos a elas e as que não existem fossem criadas ao salvar a tabela (algo semelhante ao que acontece com atributos, variantes e grupos).
+
+Sugestões interessantes:
+Renderer mostra badges coloridos (subcategorias em azul claro, raízes em verde claro). Tooltip com caminho completo da categoria ao passar o mouse
+
+## Bugfixes v1.0.7
+### 1.
+Ao copiar as categorias de um produto no outro e apertar para salvar o sistema não está salvando. Me parece que nem está enviando para o servidor. Nos do servidor diz: categories_json: None.
+
+### 2.
+Talvez foss interessante guardar todos estes "metadados" json de categorias, atributos, variantes, grupos em cada entrada de produto do banco de dados, concorda ou discorda? Desta forma, ao invés de processar todo o JSON ao recebê-lo do frontend, basta verificar se houve alguma modificação com relação ao backend e apenas processá-lo caso estejam diferentas.
+
+# Specifications v1.0.8
+
+Seria bom que tivesse a tab para manipulação Categorias via tabela tal como há de Produtos, Variantes, Grupos, Atributos.
 
 Também seria bom que ao selecionar um produto específico na tab de variantes, 
+
+
+
+
+
+# Ideias futuras
+
+## Ideia 1
+
+Seria bom indicar de qual coluna o SLUG é dependente (por exemplo, do nome) e gerar na tabela o slug automaticamente ao modificar a célula correspondente quando o campo de slug está vazio. 

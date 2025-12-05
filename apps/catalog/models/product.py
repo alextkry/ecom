@@ -32,6 +32,34 @@ class Product(models.Model):
         default=True,
         verbose_name='Ativo'
     )
+    
+    # JSON metadata fields - store the JSON representation for comparison
+    # These are updated when saving from bulk edit and used to detect changes
+    metadata_attributes = models.JSONField(
+        null=True,
+        blank=True,
+        verbose_name='Metadados: Atributos',
+        help_text='JSON dos atributos do produto'
+    )
+    metadata_variants = models.JSONField(
+        null=True,
+        blank=True,
+        verbose_name='Metadados: Variantes',
+        help_text='JSON das variantes do produto'
+    )
+    metadata_groups = models.JSONField(
+        null=True,
+        blank=True,
+        verbose_name='Metadados: Grupos',
+        help_text='JSON dos grupos do produto'
+    )
+    metadata_categories = models.JSONField(
+        null=True,
+        blank=True,
+        verbose_name='Metadados: Categorias',
+        help_text='JSON das categorias do produto'
+    )
+    
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name='Criado em'

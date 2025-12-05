@@ -60,11 +60,15 @@ def bulk_products_data(request):
         attr_types_count = product.get_attribute_types().count()
         variant_count = product.variant_count
         
-        # Build categories data
-        categories_list = [
-            {'id': cat.id, 'name': cat.name, 'full_path': cat.full_path}
-            for cat in product.categories.all()
-        ]
+        # Build categories JSON data
+        categories_json = []
+        for cat in product.categories.select_related('parent').all():
+            categories_json.append({
+                'nome': cat.name,
+                'slug': cat.slug,
+                'full_path': cat.full_path,
+                'pai': cat.parent.slug if cat.parent else None,
+            })
         
         row = {
             'id': product.id,
@@ -92,9 +96,7 @@ def bulk_products_data(request):
             'attributes_json': None,
             'variants_json': None,
             'groups_json': None,
-            # Categories
-            'categories': categories_list,
-            'category_ids': [c['id'] for c in categories_list],
+            'categories_json': categories_json if categories_json else None,
         }
         
         # Build attributes JSON - aggregate all attribute types and their values
@@ -191,31 +193,107 @@ def bulk_products_data(request):
     return JsonResponse({'data': data})
 
 
+def _process_categories_json(product, categories_json):
+    """
+    Process categories JSON data for a product.
+    Creates new categories if needed, then assigns them to the product.
+    
+    Expected format:
+    [
+        {"nome": "Category Name", "slug": "category-slug", "pai": "parent-slug"},
+        {"nome": "Another Category", "slug": "another-category", "pai": null}
+    ]
+    """
+    if not categories_json:
+        # Clear all categories if empty list
+        product.categories.clear()
+        return
+    
+    category_ids = []
+    
+    for cat_data in categories_json:
+        nome = cat_data.get('nome', '').strip()
+        if not nome:
+            continue
+        
+        cat_slug = cat_data.get('slug', '').strip() or slugify(nome)
+        parent_slug = cat_data.get('pai')
+        
+        # Get parent category if specified
+        parent = None
+        if parent_slug:
+            parent = Category.objects.filter(slug=parent_slug).first()
+        
+        # Get or create the category
+        category, created = Category.objects.get_or_create(
+            slug=cat_slug,
+            defaults={
+                'name': nome,
+                'parent': parent,
+                'is_active': True,
+            }
+        )
+        
+        if created:
+            print(f"  - Created new category: {category.full_path}")
+        
+        category_ids.append(category.id)
+    
+    # Update product's categories
+    product.categories.set(category_ids)
+    print(f"  - Assigned {len(category_ids)} categories to product")
+
+
+def _json_changed(old_json, new_json):
+    """Compare two JSON values to detect changes."""
+    import json
+    # Normalize to JSON strings for comparison
+    old_str = json.dumps(old_json, sort_keys=True) if old_json else None
+    new_str = json.dumps(new_json, sort_keys=True) if new_json else None
+    return old_str != new_str
+
+
 def _process_product_json_data(product, item):
     """
-    Process JSON data for attributes, variants, and groups.
+    Process JSON data for attributes, variants, groups, and categories.
     Creates/updates related entities based on the JSON data.
+    Only processes if there are changes compared to stored metadata.
     """
     attributes_json = item.get('attributes_json')
     variants_json = item.get('variants_json')
     groups_json = item.get('groups_json')
+    categories_json = item.get('categories_json')
     
     print(f"[JSON PROCESS] Product {product.id} ({product.name})")
     print(f"  - attributes_json: {attributes_json}")
     print(f"  - variants_json: {variants_json}")
     print(f"  - groups_json: {groups_json}")
+    print(f"  - categories_json: {categories_json}")
     
-    # Skip if no JSON data provided
-    if not any([attributes_json, variants_json, groups_json]):
-        print("  - No JSON data to process, skipping")
+    # Check what changed
+    categories_changed = _json_changed(product.metadata_categories, categories_json)
+    attributes_changed = _json_changed(product.metadata_attributes, attributes_json)
+    variants_changed = _json_changed(product.metadata_variants, variants_json)
+    groups_changed = _json_changed(product.metadata_groups, groups_json)
+    
+    print(f"  - Changes: categories={categories_changed}, attributes={attributes_changed}, variants={variants_changed}, groups={groups_changed}")
+    
+    # Skip if nothing changed
+    if not any([categories_changed, attributes_changed, variants_changed, groups_changed]):
+        print("  - No changes detected, skipping")
         return
     
-    print("  - Processing JSON data...")
+    print("  - Processing changed JSON data...")
+    
+    # Process categories - create if needed, then assign to product
+    if categories_changed and categories_json is not None:
+        _process_categories_json(product, categories_json)
+        product.metadata_categories = categories_json
     
     # Process attributes - create AttributeTypes and AttributeOptions
     attr_type_map = {}  # {attr_name: {value: AttributeOption}}
     
-    if attributes_json:
+    if attributes_changed and attributes_json:
         for attr_data in attributes_json:
             attr_name = attr_data.get('atributo', '').strip()
             valores = attr_data.get('valores', [])
@@ -242,9 +320,11 @@ def _process_product_json_data(product, item):
                         defaults={'display_value': valor}
                     )
                     attr_type_map[attr_name.lower()][valor.lower()] = option
+        
+        product.metadata_attributes = attributes_json
     
     # Process variants - create/update Variants with their attributes
-    if variants_json:
+    if variants_changed and variants_json:
         existing_skus = set(product.variants.values_list('sku', flat=True))
         new_skus = set()
         
@@ -303,9 +383,11 @@ def _process_product_json_data(product, item):
             skus_to_delete = existing_skus - new_skus
             if skus_to_delete:
                 Variant.objects.filter(product=product, sku__in=skus_to_delete).delete()
+        
+        product.metadata_variants = variants_json
     
     # Process groups - create/update VariantGroups
-    if groups_json:
+    if groups_changed and groups_json:
         existing_group_slugs = set(product.variant_groups.values_list('slug', flat=True))
         new_group_slugs = set()
         
@@ -356,6 +438,16 @@ def _process_product_json_data(product, item):
             slugs_to_delete = existing_group_slugs - new_group_slugs
             if slugs_to_delete:
                 VariantGroup.objects.filter(product=product, slug__in=slugs_to_delete).delete()
+        
+        product.metadata_groups = groups_json
+    
+    # Save product metadata if any changes were made
+    if any([categories_changed, attributes_changed, variants_changed, groups_changed]):
+        product.save(update_fields=[
+            'metadata_categories', 'metadata_attributes', 
+            'metadata_variants', 'metadata_groups'
+        ])
+        print(f"  - Saved metadata for product {product.id}")
 
 
 @staff_member_required
@@ -1165,10 +1257,8 @@ def categories_search(request):
     Search/list categories with hierarchy info.
     Query params:
     - q: search query (optional)
-    - product_id: filter to get categories for a specific product (optional)
     """
     query = request.GET.get('q', '').strip()
-    product_id = request.GET.get('product_id')
     
     categories = Category.objects.filter(is_active=True).select_related('parent')
     
@@ -1177,15 +1267,6 @@ def categories_search(request):
         categories = categories.filter(name__icontains=query)
     
     categories = categories.order_by('parent__name', 'display_order', 'name')[:100]
-    
-    # Get selected category IDs for the product if specified
-    selected_ids = set()
-    if product_id:
-        try:
-            product = Product.objects.get(pk=product_id)
-            selected_ids = set(product.categories.values_list('id', flat=True))
-        except Product.DoesNotExist:
-            pass
     
     data = []
     for cat in categories:
@@ -1196,8 +1277,8 @@ def categories_search(request):
             'full_path': cat.full_path,
             'parent_id': cat.parent_id,
             'parent_name': cat.parent.name if cat.parent else None,
+            'parent_slug': cat.parent.slug if cat.parent else None,
             'level': len(cat.get_ancestors()),
-            'selected': cat.id in selected_ids,
         })
     
     return JsonResponse({'categories': data})
