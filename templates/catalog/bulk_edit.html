@@ -1,0 +1,375 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@14/dist/handsontable.full.min.css">
+<style>
+    .bulk-edit-container {
+        padding: 20px;
+    }
+    .controls {
+        margin-bottom: 20px;
+        display: flex;
+        gap: 15px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .controls select, .controls button {
+        padding: 8px 12px;
+        font-size: 14px;
+    }
+    .controls select {
+        min-width: 200px;
+    }
+    .controls button {
+        background: #417690;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    .controls button:hover {
+        background: #205067;
+    }
+    .controls button.secondary {
+        background: #666;
+    }
+    .controls button.success {
+        background: #28a745;
+    }
+    #grid-container {
+        width: 100%;
+        height: calc(100vh - 300px);
+        min-height: 400px;
+        overflow: hidden;
+    }
+    .status-bar {
+        margin-top: 10px;
+        padding: 10px;
+        background: #f0f0f0;
+        border-radius: 4px;
+        font-size: 13px;
+    }
+    .status-bar .success { color: #28a745; }
+    .status-bar .error { color: #dc3545; }
+    .status-bar .info { color: #17a2b8; }
+    
+    /* Group modal */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.5);
+    }
+    .modal-content {
+        background-color: white;
+        margin: 15% auto;
+        padding: 20px;
+        border-radius: 8px;
+        width: 400px;
+        max-width: 90%;
+    }
+    .modal-content h3 {
+        margin-top: 0;
+    }
+    .modal-content select {
+        width: 100%;
+        padding: 8px;
+        margin: 10px 0;
+    }
+    .modal-buttons {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 15px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="bulk-edit-container">
+    <h1>{{ title }}</h1>
+    
+    <div class="controls">
+        <label for="product-select">Produto:</label>
+        <select id="product-select">
+            <option value="">-- Selecione um produto --</option>
+            {% for product in products %}
+            <option value="{{ product.id }}">{{ product.name }}</option>
+            {% endfor %}
+        </select>
+        
+        <label for="group-select">ou Grupo:</label>
+        <select id="group-select">
+            <option value="">-- Todos --</option>
+            {% for group in variant_groups %}
+            <option value="{{ group.id }}">{{ group.product.name }} - {{ group.name }}</option>
+            {% endfor %}
+        </select>
+        
+        <button type="button" onclick="loadData()">Carregar</button>
+        <button type="button" class="success" onclick="saveChanges()">💾 Salvar Alterações</button>
+        <button type="button" class="secondary" onclick="openGroupModal()">📁 Adicionar a Grupo</button>
+    </div>
+    
+    <div id="grid-container"></div>
+    
+    <div class="status-bar" id="status-bar">
+        <span class="info">Selecione um produto ou grupo e clique em "Carregar" para começar.</span>
+    </div>
+</div>
+
+<!-- Modal for adding to group -->
+<div id="group-modal" class="modal">
+    <div class="modal-content">
+        <h3>Adicionar Variantes ao Grupo</h3>
+        <p>Selecione o grupo para adicionar as variantes selecionadas:</p>
+        <select id="modal-group-select">
+            <option value="">-- Selecione um grupo --</option>
+            {% for group in variant_groups %}
+            <option value="{{ group.id }}" data-product="{{ group.product_id }}">
+                {{ group.product.name }} - {{ group.name }}
+            </option>
+            {% endfor %}
+        </select>
+        <div class="modal-buttons">
+            <button type="button" class="secondary" onclick="closeGroupModal()">Cancelar</button>
+            <button type="button" class="success" onclick="addToGroup()">Adicionar</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/handsontable@14/dist/handsontable.full.min.js"></script>
+<script>
+    let hot = null;
+    let pendingChanges = [];
+    const csrfToken = '{{ csrf_token }}';
+    
+    function setStatus(message, type = 'info') {
+        document.getElementById('status-bar').innerHTML = 
+            `<span class="${type}">${message}</span>`;
+    }
+    
+    function loadData() {
+        const productId = document.getElementById('product-select').value;
+        const groupId = document.getElementById('group-select').value;
+        
+        if (!productId && !groupId) {
+            setStatus('Por favor, selecione um produto ou grupo.', 'error');
+            return;
+        }
+        
+        setStatus('Carregando dados...', 'info');
+        
+        let url = '{% url "catalog:bulk_edit_data" %}?';
+        if (productId) url += `product_id=${productId}`;
+        else if (groupId) url += `group_id=${groupId}`;
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(jsonData => {
+                initGrid(jsonData);
+                setStatus(`${jsonData.data.length} variantes carregadas.`, 'success');
+            })
+            .catch(error => {
+                setStatus(`Erro ao carregar: ${error}`, 'error');
+            });
+    }
+    
+    function initGrid(jsonData) {
+        const container = document.getElementById('grid-container');
+        
+        if (hot) {
+            hot.destroy();
+        }
+        
+        pendingChanges = [];
+        
+        hot = new Handsontable(container, {
+            data: jsonData.data,
+            columns: jsonData.columns,
+            colHeaders: jsonData.columns.map(c => c.title),
+            rowHeaders: true,
+            
+            // Features
+            contextMenu: true,
+            manualColumnResize: true,
+            manualRowResize: true,
+            filters: true,
+            dropdownMenu: true,
+            multiColumnSorting: true,
+            
+            // Selection
+            selectionMode: 'multiple',
+            outsideClickDeselects: false,
+            
+            // Appearance
+            stretchH: 'all',
+            height: '100%',
+            
+            // Fill handle for autofill
+            fillHandle: {
+                direction: 'vertical',
+                autoInsertRow: false
+            },
+            
+            // Copy/paste
+            copyPaste: true,
+            
+            // License
+            licenseKey: 'non-commercial-and-evaluation',
+            
+            // Track changes
+            afterChange: function(changes, source) {
+                if (source === 'loadData' || !changes) return;
+                
+                for (const [row, prop, oldVal, newVal] of changes) {
+                    if (oldVal === newVal) continue;
+                    
+                    const rowData = this.getSourceDataAtRow(row);
+                    pendingChanges.push({
+                        id: rowData.id,
+                        field: prop,
+                        value: newVal,
+                        oldValue: oldVal
+                    });
+                }
+                
+                if (pendingChanges.length > 0) {
+                    setStatus(`${pendingChanges.length} alteração(ões) pendente(s). Clique em "Salvar Alterações" para aplicar.`, 'info');
+                }
+            }
+        });
+    }
+    
+    function saveChanges() {
+        if (pendingChanges.length === 0) {
+            setStatus('Nenhuma alteração para salvar.', 'info');
+            return;
+        }
+        
+        setStatus('Salvando alterações...', 'info');
+        
+        fetch('{% url "catalog:bulk_edit_save" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(pendingChanges)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'ok') {
+                setStatus(`${result.updated} alteração(ões) salva(s) com sucesso!`, 'success');
+                pendingChanges = [];
+                
+                if (result.errors && result.errors.length > 0) {
+                    console.warn('Errors:', result.errors);
+                }
+            } else {
+                setStatus(`Erro: ${result.message}`, 'error');
+            }
+        })
+        .catch(error => {
+            setStatus(`Erro ao salvar: ${error}`, 'error');
+        });
+    }
+    
+    function openGroupModal() {
+        if (!hot) {
+            setStatus('Carregue os dados primeiro.', 'error');
+            return;
+        }
+        
+        const selected = hot.getSelected();
+        if (!selected || selected.length === 0) {
+            setStatus('Selecione pelo menos uma linha.', 'error');
+            return;
+        }
+        
+        document.getElementById('group-modal').style.display = 'block';
+    }
+    
+    function closeGroupModal() {
+        document.getElementById('group-modal').style.display = 'none';
+    }
+    
+    function addToGroup() {
+        const groupId = document.getElementById('modal-group-select').value;
+        if (!groupId) {
+            alert('Selecione um grupo.');
+            return;
+        }
+        
+        const selected = hot.getSelected();
+        const variantIds = new Set();
+        
+        for (const [row1, col1, row2, col2] of selected) {
+            for (let row = Math.min(row1, row2); row <= Math.max(row1, row2); row++) {
+                const rowData = hot.getSourceDataAtRow(row);
+                if (rowData && rowData.id) {
+                    variantIds.add(rowData.id);
+                }
+            }
+        }
+        
+        if (variantIds.size === 0) {
+            alert('Nenhuma variante selecionada.');
+            return;
+        }
+        
+        fetch('{% url "catalog:bulk_add_to_group" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                group_id: groupId,
+                variant_ids: Array.from(variantIds)
+            })
+        })
+        .then(response => response.json())
+        .then(result => {
+            closeGroupModal();
+            if (result.status === 'ok') {
+                setStatus(`${result.added} variante(s) adicionada(s) ao grupo!`, 'success');
+                loadData(); // Refresh to show updated groups
+            } else {
+                setStatus(`Erro: ${result.message}`, 'error');
+            }
+        })
+        .catch(error => {
+            closeGroupModal();
+            setStatus(`Erro: ${error}`, 'error');
+        });
+    }
+    
+    // Clear group selection when product changes
+    document.getElementById('product-select').addEventListener('change', function() {
+        if (this.value) {
+            document.getElementById('group-select').value = '';
+        }
+    });
+    
+    document.getElementById('group-select').addEventListener('change', function() {
+        if (this.value) {
+            document.getElementById('product-select').value = '';
+        }
+    });
+    
+    // Close modal on outside click
+    window.onclick = function(event) {
+        const modal = document.getElementById('group-modal');
+        if (event.target === modal) {
+            closeGroupModal();
+        }
+    }
+</script>
+{% endblock %}
