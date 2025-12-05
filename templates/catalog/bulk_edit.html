@@ -274,6 +274,36 @@
     .category-badge button:hover {
         color: #dc3545;
     }
+    
+    /* Category hierarchy styles */
+    .category-toggle {
+        cursor: pointer;
+        display: inline-block;
+        width: 16px;
+        text-align: center;
+        font-size: 10px;
+        color: #666;
+        user-select: none;
+    }
+    .category-toggle:hover {
+        color: #417690;
+    }
+    .category-name-cell {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .category-indent {
+        display: inline-block;
+        width: 20px;
+    }
+    .category-row-collapsed {
+        display: none !important;
+    }
+    .category-level-0 { font-weight: bold; }
+    .category-level-1 { color: #444; }
+    .category-level-2 { color: #666; }
+    .category-level-3 { color: #888; font-style: italic; }
 </style>
 {% endblock %}
 
@@ -392,13 +422,17 @@
     <!-- TAB: CATEGORIAS -->
     <div id="tab-categories" class="tab-content">
         <div class="help-text">
-            <strong>Categorias:</strong> Gerencie categorias hierárquicas. Clique em "(X produtos)" para gerenciar os produtos da categoria.
+            <strong>Categorias:</strong> Gerencie categorias hierárquicas. Clique em "▶/▼" para expandir/colapsar. Clique em "(X produtos)" para gerenciar produtos.
         </div>
         
         <div class="controls">
             <button type="button" onclick="addCategoryRow()">➕ Nova Categoria</button>
             <button type="button" class="success" onclick="saveCategories()">💾 Salvar Categorias</button>
             <button type="button" class="secondary" onclick="loadCategories()">🔄 Recarregar</button>
+            <span style="margin-left: 20px; border-left: 1px solid #ccc; padding-left: 15px;">
+                <button type="button" class="secondary" onclick="expandAllCategories()">📂 Expandir Tudo</button>
+                <button type="button" class="secondary" onclick="collapseAllCategories()">📁 Colapsar Tudo</button>
+            </span>
         </div>
         
         <div id="categories-grid" class="grid-container"></div>
@@ -2478,6 +2512,7 @@
     let allProductsForCategories = [];
     let currentCategoryId = null;
     let initialProductIds = [];
+    let collapsedCategories = new Set();  // IDs of collapsed parent categories
     
     function loadCategoriesGrid() {
         setStatus('categories-status', 'Carregando categorias...', 'info');
@@ -2500,6 +2535,48 @@
         loadCategoriesGrid();
     }
     
+    // Check if a row should be hidden based on collapsed parents
+    function isRowCollapsed(rowData) {
+        if (!rowData || !rowData.parent_id) return false;
+        
+        // Check if any ancestor is collapsed
+        let parentId = rowData.parent_id;
+        while (parentId) {
+            if (collapsedCategories.has(parentId)) {
+                return true;
+            }
+            // Find parent's parent
+            const parent = allCategoriesData.find(c => c.id === parentId);
+            parentId = parent ? parent.parent_id : null;
+        }
+        return false;
+    }
+    
+    // Toggle collapse state for a category
+    function toggleCategoryCollapse(categoryId) {
+        if (collapsedCategories.has(categoryId)) {
+            collapsedCategories.delete(categoryId);
+        } else {
+            collapsedCategories.add(categoryId);
+        }
+        categoriesHot.render();
+    }
+    
+    function expandAllCategories() {
+        collapsedCategories.clear();
+        if (categoriesHot) categoriesHot.render();
+    }
+    
+    function collapseAllCategories() {
+        // Collapse all categories that have children
+        allCategoriesData.forEach(cat => {
+            if (cat.has_children) {
+                collapsedCategories.add(cat.id);
+            }
+        });
+        if (categoriesHot) categoriesHot.render();
+    }
+    
     function initCategoriesGrid(jsonData) {
         const container = document.getElementById('categories-grid');
         
@@ -2508,6 +2585,39 @@
         }
         
         newCategoryRows.clear();
+        
+        // Custom renderer for category name with indentation and toggle
+        function categoryNameRenderer(instance, td, row, col, prop, value, cellProperties) {
+            const rowData = instance.getSourceDataAtRow(row);
+            const level = rowData ? (rowData.level || 0) : 0;
+            const hasChildren = rowData ? rowData.has_children : false;
+            const catId = rowData ? rowData.id : null;
+            const isCollapsed = catId && collapsedCategories.has(catId);
+            
+            // Build indentation
+            let indent = '';
+            for (let i = 0; i < level; i++) {
+                indent += '<span class="category-indent"></span>';
+            }
+            
+            // Toggle button
+            let toggle = '';
+            if (hasChildren && catId) {
+                const icon = isCollapsed ? '▶' : '▼';
+                toggle = `<span class="category-toggle" onclick="event.stopPropagation(); toggleCategoryCollapse(${catId})">${icon}</span>`;
+            } else if (level > 0) {
+                toggle = '<span class="category-toggle">└</span>';
+            } else {
+                toggle = '<span class="category-toggle">•</span>';
+            }
+            
+            td.innerHTML = `<div class="category-name-cell">${indent}${toggle}<span>${value || ''}</span></div>`;
+            td.className = `category-level-${Math.min(level, 3)}`;
+            
+            if (newCategoryRows.has(row)) {
+                td.classList.add('new-row');
+            }
+        }
         
         // Custom renderer for product count with clickable link
         function productCountRenderer(instance, td, row, col, prop, value, cellProperties) {
@@ -2544,7 +2654,7 @@
             colHeaders: ['ID', 'Nome', 'Slug', 'Descrição', 'Categoria Pai', 'Caminho', 'Produtos', 'Ativa'],
             columns: [
                 {data: 'id', readOnly: true, width: 50},
-                {data: 'name', width: 180},
+                {data: 'name', width: 250, renderer: categoryNameRenderer},
                 {data: 'slug', width: 150},
                 {data: 'description', width: 200},
                 {data: 'parent_id', width: 180, renderer: parentRenderer, type: 'dropdown', source: parentOptions.map(o => o.label), strict: false},
@@ -2562,11 +2672,34 @@
             outsideClickDeselects: false,
             licenseKey: 'non-commercial-and-evaluation',
             
+            // Hide rows that are collapsed
+            beforeRenderer: function(TD, row, col, prop, value, cellProperties) {
+                const rowData = this.getSourceDataAtRow(row);
+                if (isRowCollapsed(rowData)) {
+                    TD.parentElement && (TD.parentElement.style.display = 'none');
+                }
+            },
+            
+            afterRenderer: function(TD, row, col, prop, value, cellProperties) {
+                const rowData = this.getSourceDataAtRow(row);
+                if (isRowCollapsed(rowData)) {
+                    if (TD.parentElement) {
+                        TD.parentElement.style.display = 'none';
+                    }
+                } else {
+                    if (TD.parentElement) {
+                        TD.parentElement.style.display = '';
+                    }
+                }
+            },
+            
             afterCreateRow: function(index, amount) {
                 for (let i = 0; i < amount; i++) {
                     newCategoryRows.add(index + i);
                     this.setDataAtRowProp(index + i, 'is_active', true);
                     this.setDataAtRowProp(index + i, 'product_count', 0);
+                    this.setDataAtRowProp(index + i, 'level', 0);
+                    this.setDataAtRowProp(index + i, 'has_children', false);
                 }
                 this.render();
             },

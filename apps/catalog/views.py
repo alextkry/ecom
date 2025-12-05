@@ -1325,29 +1325,56 @@ def product_categories_update(request, product_id):
 @staff_member_required
 @require_http_methods(["GET"])
 def bulk_categories_data(request):
-    """API endpoint to get categories data for the grid."""
+    """API endpoint to get categories data for the grid, ordered hierarchically."""
     from django.db.models import Count
     
     categories = Category.objects.select_related('parent').annotate(
         product_count=Count('products')
-    ).order_by('parent__name', 'display_order', 'name')
+    )
     
-    data = []
+    # Build hierarchical structure
+    cat_dict = {cat.id: cat for cat in categories}
+    roots = []
+    children_map = {}  # parent_id -> list of children
+    
     for cat in categories:
-        data.append({
-            'id': cat.id,
-            'name': cat.name,
-            'slug': cat.slug,
-            'parent_id': cat.parent_id,
-            'parent_name': cat.parent.name if cat.parent else None,
-            'parent_slug': cat.parent.slug if cat.parent else None,
-            'full_path': cat.full_path,
-            'description': cat.description or '',
-            'is_active': cat.is_active,
-            'display_order': cat.display_order,
-            'product_count': cat.product_count,
-            'level': len(cat.get_ancestors()),
-        })
+        if cat.parent_id:
+            if cat.parent_id not in children_map:
+                children_map[cat.parent_id] = []
+            children_map[cat.parent_id].append(cat)
+        else:
+            roots.append(cat)
+    
+    # Sort roots and children by display_order, then name
+    roots.sort(key=lambda c: (c.display_order or 0, c.name))
+    for parent_id in children_map:
+        children_map[parent_id].sort(key=lambda c: (c.display_order or 0, c.name))
+    
+    # Flatten hierarchically using DFS
+    def flatten(cats, level=0):
+        result = []
+        for cat in cats:
+            has_children = cat.id in children_map and len(children_map[cat.id]) > 0
+            result.append({
+                'id': cat.id,
+                'name': cat.name,
+                'slug': cat.slug,
+                'parent_id': cat.parent_id,
+                'parent_name': cat.parent.name if cat.parent else None,
+                'parent_slug': cat.parent.slug if cat.parent else None,
+                'full_path': cat.full_path,
+                'description': cat.description or '',
+                'is_active': cat.is_active,
+                'display_order': cat.display_order,
+                'product_count': cat.product_count,
+                'level': level,
+                'has_children': has_children,
+            })
+            if cat.id in children_map:
+                result.extend(flatten(children_map[cat.id], level + 1))
+        return result
+    
+    data = flatten(roots)
     
     return JsonResponse({'data': data})
 
@@ -1386,11 +1413,11 @@ def bulk_categories_save(request):
                     slug = f"{base_slug}-{counter}"
                     counter += 1
                 
-                # Get parent if specified
+                # Get parent if specified (by ID)
                 parent = None
-                parent_slug = item.get('parent_slug', '').strip()
-                if parent_slug:
-                    parent = Category.objects.filter(slug=parent_slug).first()
+                parent_id = item.get('parent_id')
+                if parent_id:
+                    parent = Category.objects.filter(pk=parent_id).first()
                 
                 Category.objects.create(
                     name=name,
@@ -1415,10 +1442,10 @@ def bulk_categories_save(request):
                 cat.is_active = item.get('is_active', True)
                 cat.display_order = item.get('display_order', 0)
                 
-                # Update parent
-                parent_slug = item.get('parent_slug', '').strip() if item.get('parent_slug') else None
-                if parent_slug:
-                    cat.parent = Category.objects.filter(slug=parent_slug).first()
+                # Update parent (by ID)
+                parent_id = item.get('parent_id')
+                if parent_id:
+                    cat.parent = Category.objects.filter(pk=parent_id).first()
                 else:
                     cat.parent = None
                 
