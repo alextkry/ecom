@@ -7,6 +7,7 @@ class Product(models.Model):
     """
     Base product model.
     Example: "Linha Modelo_X" which has multiple variants.
+    Products don't have their own images - they use images from their variants.
     """
     name = models.CharField(
         max_length=255,
@@ -57,6 +58,19 @@ class Product(models.Model):
     @property
     def active_variant_count(self):
         return self.variants.filter(is_active=True).count()
+
+    def get_thumbnail_url(self):
+        """Get thumbnail URL from the first variant that has an image."""
+        # Get first variant with images
+        for variant in self.variants.prefetch_related('images').all():
+            primary_image = variant.primary_image
+            if primary_image:
+                try:
+                    return primary_image.thumbnail_small.url
+                except Exception:
+                    return primary_image.image.url
+        return None
+        return None
 
     def get_attribute_types(self):
         """Get all attribute types used by this product's variants."""

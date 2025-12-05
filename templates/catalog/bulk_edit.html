@@ -8,14 +8,47 @@
     .bulk-edit-container {
         padding: 20px;
     }
-    .controls {
-        margin-bottom: 20px;
+    .tabs {
         display: flex;
-        gap: 15px;
+        gap: 0;
+        margin-bottom: 0;
+        border-bottom: 2px solid #417690;
+    }
+    .tab {
+        padding: 12px 24px;
+        background: #f0f0f0;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        border-radius: 4px 4px 0 0;
+        margin-right: 2px;
+    }
+    .tab.active {
+        background: #417690;
+        color: white;
+    }
+    .tab:hover:not(.active) {
+        background: #ddd;
+    }
+    .tab-content {
+        display: none;
+        padding: 20px;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-top: none;
+    }
+    .tab-content.active {
+        display: block;
+    }
+    .controls {
+        margin-bottom: 15px;
+        display: flex;
+        gap: 10px;
         align-items: center;
         flex-wrap: wrap;
     }
-    .controls select, .controls button {
+    .controls select, .controls input, .controls button {
         padding: 8px 12px;
         font-size: 14px;
     }
@@ -38,9 +71,16 @@
     .controls button.success {
         background: #28a745;
     }
-    #grid-container {
+    .controls button.danger {
+        background: #dc3545;
+    }
+    .controls button.warning {
+        background: #ffc107;
+        color: #333;
+    }
+    .grid-container {
         width: 100%;
-        height: calc(100vh - 300px);
+        height: calc(100vh - 400px);
         min-height: 400px;
         overflow: hidden;
     }
@@ -54,8 +94,9 @@
     .status-bar .success { color: #28a745; }
     .status-bar .error { color: #dc3545; }
     .status-bar .info { color: #17a2b8; }
+    .status-bar .warning { color: #ffc107; }
     
-    /* Group modal */
+    /* Modal */
     .modal {
         display: none;
         position: fixed;
@@ -68,19 +109,36 @@
     }
     .modal-content {
         background-color: white;
-        margin: 15% auto;
+        color: #333;
+        margin: 10% auto;
         padding: 20px;
         border-radius: 8px;
-        width: 400px;
+        width: 500px;
         max-width: 90%;
     }
     .modal-content h3 {
         margin-top: 0;
+        color: #333;
     }
-    .modal-content select {
+    .modal-content label {
+        display: block;
+        margin-top: 10px;
+        margin-bottom: 5px;
+        color: #333;
+        font-weight: 500;
+    }
+    .modal-content select, .modal-content input, .modal-content textarea {
         width: 100%;
         padding: 8px;
-        margin: 10px 0;
+        margin: 5px 0 10px 0;
+        box-sizing: border-box;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        color: #333;
+        background-color: #fff;
+    }
+    .modal-content p {
+        color: #666;
     }
     .modal-buttons {
         display: flex;
@@ -88,238 +146,1332 @@
         justify-content: flex-end;
         margin-top: 15px;
     }
+    
+    .help-text {
+        background: #e7f3ff;
+        padding: 10px 15px;
+        border-radius: 4px;
+        margin-bottom: 15px;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+    .help-text strong {
+        color: #417690;
+    }
+    
+    /* New row indicator */
+    .new-row {
+        background-color: #d4edda !important;
+    }
+    
+    /* Image upload area */
+    .image-upload-area {
+        border: 2px dashed #ccc;
+        border-radius: 8px;
+        padding: 30px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: #f9f9f9;
+    }
+    .image-upload-area:hover, .image-upload-area.dragover {
+        border-color: #417690;
+        background: #e7f3ff;
+    }
+    .image-upload-area p {
+        margin: 0;
+        color: #666;
+        font-size: 14px;
+    }
+    
+    /* Image gallery */
+    .image-item {
+        position: relative;
+        width: 100px;
+        height: 100px;
+        border: 2px solid #ddd;
+        border-radius: 6px;
+        overflow: hidden;
+        cursor: pointer;
+    }
+    .image-item.primary {
+        border-color: #28a745;
+        box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
+    }
+    .image-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .image-item .image-actions {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: rgba(0,0,0,0.7);
+        display: flex;
+        justify-content: space-around;
+        padding: 4px;
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+    .image-item:hover .image-actions {
+        opacity: 1;
+    }
+    .image-item .image-actions button {
+        background: none;
+        border: none;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 2px 6px;
+    }
+    .image-item .image-actions button:hover {
+        transform: scale(1.2);
+    }
+    .image-item .primary-badge {
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        background: #28a745;
+        color: white;
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 3px;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="bulk-edit-container">
-    <h1>{{ title }}</h1>
+    <h1>Gerenciamento de Produtos e Variantes</h1>
     
-    <div class="controls">
-        <label for="product-select">Produto:</label>
-        <select id="product-select">
-            <option value="">-- Selecione um produto --</option>
-            {% for product in products %}
-            <option value="{{ product.id }}">{{ product.name }}</option>
-            {% endfor %}
-        </select>
-        
-        <label for="group-select">ou Grupo:</label>
-        <select id="group-select">
-            <option value="">-- Todos --</option>
-            {% for group in variant_groups %}
-            <option value="{{ group.id }}">{{ group.product.name }} - {{ group.name }}</option>
-            {% endfor %}
-        </select>
-        
-        <button type="button" onclick="loadData()">Carregar</button>
-        <button type="button" class="success" onclick="saveChanges()">💾 Salvar Alterações</button>
-        <button type="button" class="secondary" onclick="openGroupModal()">📁 Adicionar a Grupo</button>
+    <div class="tabs">
+        <button class="tab active" onclick="switchTab('products')">📦 Produtos</button>
+        <button class="tab" onclick="switchTab('variants')">🏷️ Variantes</button>
+        <button class="tab" onclick="switchTab('groups')">📁 Grupos</button>
+        <button class="tab" onclick="switchTab('attributes')">⚙️ Atributos</button>
     </div>
     
-    <div id="grid-container"></div>
+    <!-- TAB: PRODUTOS -->
+    <div id="tab-products" class="tab-content active">
+        <div class="help-text">
+            <strong>Dica:</strong> Adicione novas linhas clicando com botão direito → "Inserir linha abaixo". 
+            Use <strong>Ctrl+C/Ctrl+V</strong> para copiar/colar. Células verdes são novas linhas não salvas.
+        </div>
+        
+        <div class="controls">
+            <button type="button" onclick="addProductRow()">➕ Nova Linha</button>
+            <button type="button" class="success" onclick="saveProducts()">💾 Salvar Produtos</button>
+            <button type="button" class="secondary" onclick="loadProducts()">🔄 Recarregar</button>
+        </div>
+        
+        <div id="products-grid" class="grid-container"></div>
+        <div class="status-bar" id="products-status">
+            <span class="info">Carregando produtos...</span>
+        </div>
+    </div>
     
-    <div class="status-bar" id="status-bar">
-        <span class="info">Selecione um produto ou grupo e clique em "Carregar" para começar.</span>
+    <!-- TAB: VARIANTES -->
+    <div id="tab-variants" class="tab-content">
+        <div class="help-text">
+            <strong>Dica:</strong> Selecione um produto para ver suas variantes. 
+            <strong>Duplique linhas</strong> clicando com botão direito → "Duplicar linha". 
+            Edite SKU e atributos para criar novas variantes.
+        </div>
+        
+        <div class="controls">
+            <label for="variant-product-select">Produto:</label>
+            <select id="variant-product-select" onchange="loadVariants()">
+                <option value="">-- Selecione um produto --</option>
+                {% for product in products %}
+                <option value="{{ product.id }}">{{ product.name }}</option>
+                {% endfor %}
+            </select>
+            
+            <button type="button" onclick="addVariantRow()">➕ Nova Variante</button>
+            <button type="button" onclick="duplicateVariantRows()">📋 Duplicar Selecionadas</button>
+            <button type="button" class="success" onclick="saveVariants()">💾 Salvar Variantes</button>
+            <button type="button" class="warning" onclick="openGroupModal()">📁 Adicionar a Grupo</button>
+        </div>
+        
+        <div id="variants-grid" class="grid-container"></div>
+        <div class="status-bar" id="variants-status">
+            <span class="info">Selecione um produto para carregar suas variantes.</span>
+        </div>
+    </div>
+    
+    <!-- TAB: GRUPOS -->
+    <div id="tab-groups" class="tab-content">
+        <div class="help-text">
+            <strong>Grupos:</strong> Gerencie os grupos de variantes para cada produto. 
+            Grupos permitem agrupar variantes por características semelhantes para exibição na loja.
+        </div>
+        
+        <div class="controls">
+            <label for="group-product-select">Produto:</label>
+            <select id="group-product-select" onchange="loadGroups()">
+                <option value="">-- Selecione um produto --</option>
+                {% for product in products %}
+                <option value="{{ product.id }}">{{ product.name }}</option>
+                {% endfor %}
+            </select>
+            
+            <button type="button" onclick="addGroupRow()">➕ Novo Grupo</button>
+            <button type="button" class="success" onclick="saveGroups()">💾 Salvar Grupos</button>
+        </div>
+        
+        <div id="groups-grid" class="grid-container"></div>
+        <div class="status-bar" id="groups-status">
+            <span class="info">Selecione um produto para gerenciar seus grupos.</span>
+        </div>
+    </div>
+    
+    <!-- TAB: ATRIBUTOS -->
+    <div id="tab-attributes" class="tab-content">
+        <div class="help-text">
+            <strong>Atributos:</strong> Configure os tipos de atributos (Cor, Comprimento, Número) e suas opções.
+        </div>
+        
+        <div class="controls">
+            <label for="attr-type-select">Tipo de Atributo:</label>
+            <select id="attr-type-select" onchange="loadAttributeOptions()">
+                <option value="">-- Selecione --</option>
+                {% for attr in attribute_types %}
+                <option value="{{ attr.id }}">{{ attr.name }}</option>
+                {% endfor %}
+            </select>
+            
+            <button type="button" onclick="openNewAttrTypeModal()">➕ Novo Tipo</button>
+            <button type="button" onclick="addAttributeOptionRow()">➕ Nova Opção</button>
+            <button type="button" class="success" onclick="saveAttributeOptions()">💾 Salvar Opções</button>
+        </div>
+        
+        <div id="attributes-grid" class="grid-container"></div>
+        <div class="status-bar" id="attributes-status">
+            <span class="info">Selecione um tipo de atributo para gerenciar suas opções.</span>
+        </div>
     </div>
 </div>
 
-<!-- Modal for adding to group -->
+<!-- Modal: Add to Group / Create New Group -->
 <div id="group-modal" class="modal">
-    <div class="modal-content">
-        <h3>Adicionar Variantes ao Grupo</h3>
-        <p>Selecione o grupo para adicionar as variantes selecionadas:</p>
-        <select id="modal-group-select">
-            <option value="">-- Selecione um grupo --</option>
-            {% for group in variant_groups %}
-            <option value="{{ group.id }}" data-product="{{ group.product_id }}">
-                {{ group.product.name }} - {{ group.name }}
-            </option>
-            {% endfor %}
-        </select>
+    <div class="modal-content" style="max-width: 550px;">
+        <h3>📁 Adicionar Variantes a um Grupo</h3>
+        <p id="selected-variants-info" style="font-size: 13px; color: #666;"></p>
+        
+        <div style="margin: 15px 0;">
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="radio" name="group-action" value="existing" checked onchange="toggleGroupForm()">
+                <span>Adicionar a grupo existente</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin-top: 8px;">
+                <input type="radio" name="group-action" value="new" onchange="toggleGroupForm()">
+                <span>Criar novo grupo com estas variantes</span>
+            </label>
+        </div>
+        
+        <!-- Existing Group Form -->
+        <div id="existing-group-form">
+            <label>Grupo:</label>
+            <select id="modal-group-select">
+                <option value="">-- Selecione um grupo --</option>
+                {% for group in variant_groups %}
+                <option value="{{ group.id }}" data-product="{{ group.product_id }}">
+                    {{ group.product.name }} - {{ group.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <!-- New Group Form -->
+        <div id="new-group-form" style="display: none;">
+            <label>Nome do Grupo: *</label>
+            <input type="text" id="new-group-name" placeholder="Ex: Linha Modelo X Colorida (Número 5)">
+            
+            <label>Slug (identificador):</label>
+            <input type="text" id="new-group-slug" placeholder="Gerado automaticamente se vazio">
+            
+            <label>Descrição:</label>
+            <textarea id="new-group-description" rows="3" placeholder="Descrição do grupo para SEO e exibição"></textarea>
+            
+            <div id="new-group-image-preview" style="margin: 10px 0; display: flex; align-items: center; gap: 15px;">
+                <span style="font-size: 13px; color: #666;">Imagem: Será usada a imagem da primeira variante do grupo</span>
+            </div>
+        </div>
+        
         <div class="modal-buttons">
             <button type="button" class="secondary" onclick="closeGroupModal()">Cancelar</button>
-            <button type="button" class="success" onclick="addToGroup()">Adicionar</button>
+            <button type="button" class="success" onclick="submitGroupAction()">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: New Attribute Type -->
+<div id="attr-type-modal" class="modal">
+    <div class="modal-content">
+        <h3>Novo Tipo de Atributo</h3>
+        <label>Nome:</label>
+        <input type="text" id="new-attr-type-name" placeholder="Ex: Cor, Tamanho, Material">
+        <label>Slug (identificador):</label>
+        <input type="text" id="new-attr-type-slug" placeholder="Ex: cor, tamanho, material">
+        <label>Tipo de Dado:</label>
+        <select id="new-attr-type-datatype">
+            <option value="text">Texto</option>
+            <option value="number">Número</option>
+            <option value="decimal">Decimal</option>
+            <option value="color">Cor (Hex)</option>
+        </select>
+        <div class="modal-buttons">
+            <button type="button" class="secondary" onclick="closeAttrTypeModal()">Cancelar</button>
+            <button type="button" class="success" onclick="createAttributeType()">Criar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Image Manager -->
+<div id="image-modal" class="modal">
+    <div class="modal-content" style="max-width: 700px;">
+        <h3>📷 Imagens da Variante: <span id="image-modal-sku"></span></h3>
+        
+        <div class="image-upload-area" id="image-drop-zone">
+            <p>📁 Arraste imagens aqui ou clique para selecionar</p>
+            <input type="file" id="image-file-input" multiple accept="image/*" style="display: none;">
+        </div>
+        
+        <div id="image-gallery" style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; min-height: 100px;">
+            <!-- Images will be loaded here -->
+        </div>
+        
+        <div id="image-upload-status" style="margin-top: 10px; font-size: 13px;"></div>
+        
+        <div class="modal-buttons">
+            <button type="button" class="secondary" onclick="closeImageModal()">Fechar</button>
         </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/handsontable@14/dist/handsontable.full.min.js"></script>
 <script>
-    let hot = null;
-    let pendingChanges = [];
     const csrfToken = '{{ csrf_token }}';
+    let productsHot = null;
+    let variantsHot = null;
+    let attributesHot = null;
+    let currentProductId = null;
+    let currentAttrTypeId = null;
+    let currentImageVariantId = null;
     
-    function setStatus(message, type = 'info') {
-        document.getElementById('status-bar').innerHTML = 
-            `<span class="${type}">${message}</span>`;
+    // Track new rows
+    let newProductRows = new Set();
+    let newVariantRows = new Set();
+    let newAttrOptionRows = new Set();
+    
+    // =============================================================================
+    // TAB SWITCHING
+    // =============================================================================
+    
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        
+        event.target.classList.add('active');
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+        
+        // Load data for tab if needed
+        if (tabName === 'products' && !productsHot) {
+            loadProducts();
+        }
     }
     
-    function loadData() {
-        const productId = document.getElementById('product-select').value;
-        const groupId = document.getElementById('group-select').value;
+    function setStatus(elementId, message, type = 'info') {
+        document.getElementById(elementId).innerHTML = `<span class="${type}">${message}</span>`;
+    }
+    
+    // =============================================================================
+    // PRODUCTS TAB
+    // =============================================================================
+    
+    function loadProducts() {
+        setStatus('products-status', 'Carregando produtos...', 'info');
         
-        if (!productId && !groupId) {
-            setStatus('Por favor, selecione um produto ou grupo.', 'error');
-            return;
-        }
-        
-        setStatus('Carregando dados...', 'info');
-        
-        let url = '{% url "catalog:bulk_edit_data" %}?';
-        if (productId) url += `product_id=${productId}`;
-        else if (groupId) url += `group_id=${groupId}`;
-        
-        fetch(url)
+        fetch('{% url "catalog:bulk_products_data" %}')
             .then(response => response.json())
-            .then(jsonData => {
-                initGrid(jsonData);
-                setStatus(`${jsonData.data.length} variantes carregadas.`, 'success');
+            .then(data => {
+                initProductsGrid(data);
+                setStatus('products-status', `${data.data.length} produtos carregados.`, 'success');
             })
             .catch(error => {
-                setStatus(`Erro ao carregar: ${error}`, 'error');
+                setStatus('products-status', `Erro: ${error}`, 'error');
             });
     }
     
-    function initGrid(jsonData) {
-        const container = document.getElementById('grid-container');
+    function initProductsGrid(jsonData) {
+        const container = document.getElementById('products-grid');
         
-        if (hot) {
-            hot.destroy();
+        if (productsHot) {
+            productsHot.destroy();
         }
         
-        pendingChanges = [];
+        newProductRows.clear();
         
-        hot = new Handsontable(container, {
-            data: jsonData.data,
-            columns: jsonData.columns,
-            colHeaders: jsonData.columns.map(c => c.title),
-            rowHeaders: true,
+        // Custom renderer for thumbnail
+        function thumbnailRenderer(instance, td, row, col, prop, value, cellProperties) {
+            Handsontable.renderers.TextRenderer.apply(this, arguments);
+            td.innerHTML = '';
+            if (value) {
+                const img = document.createElement('img');
+                img.src = value;
+                img.style.width = '40px';
+                img.style.height = '40px';
+                img.style.objectFit = 'cover';
+                img.style.borderRadius = '4px';
+                td.appendChild(img);
+            } else {
+                td.innerHTML = '<span style="color:#999;font-size:11px;">Sem imagem</span>';
+            }
+            td.style.textAlign = 'center';
+        }
+        
+        // Custom renderer for links
+        function linksRenderer(instance, td, row, col, prop, value, cellProperties) {
+            Handsontable.renderers.TextRenderer.apply(this, arguments);
+            const rowData = instance.getSourceDataAtRow(row);
+            if (!rowData || !rowData.id) {
+                td.innerHTML = '-';
+                return;
+            }
             
-            // Features
-            contextMenu: true,
+            const productId = rowData.id;
+            td.innerHTML = `
+                <div style="display:flex;gap:8px;justify-content:center;">
+                    <a href="#" onclick="viewProductVariants(${productId}); return false;" 
+                       title="Ver variantes" style="color:#417690;text-decoration:none;">
+                        🏷️ <span style="font-size:11px;">${rowData.variant_count || 0}</span>
+                    </a>
+                    <a href="#" onclick="viewProductGroups(${productId}); return false;" 
+                       title="Ver grupos" style="color:#417690;text-decoration:none;">
+                        📁 <span style="font-size:11px;">${rowData.group_count || 0}</span>
+                    </a>
+                    <a href="#" onclick="viewProductAttributes(${productId}); return false;" 
+                       title="Ver atributos" style="color:#417690;text-decoration:none;">
+                        ⚙️ <span style="font-size:11px;">${rowData.attr_types_count || 0}</span>
+                    </a>
+                </div>
+            `;
+        }
+        
+        // Renderer for variant-only fields (show only if not has_variants)
+        function variantFieldRenderer(instance, td, row, col, prop, value, cellProperties) {
+            const rowData = instance.getSourceDataAtRow(row);
+            if (rowData && rowData.has_variants) {
+                td.innerHTML = '<span style="color:#999;font-size:11px;font-style:italic;">Múltiplas</span>';
+                td.style.backgroundColor = '#f5f5f5';
+                cellProperties.readOnly = true;
+            } else {
+                Handsontable.renderers.TextRenderer.apply(this, arguments);
+                td.style.backgroundColor = '';
+            }
+        }
+        
+        function variantPriceRenderer(instance, td, row, col, prop, value, cellProperties) {
+            const rowData = instance.getSourceDataAtRow(row);
+            if (rowData && rowData.has_variants) {
+                td.innerHTML = '<span style="color:#999;font-size:11px;font-style:italic;">-</span>';
+                td.style.backgroundColor = '#f5f5f5';
+                td.style.textAlign = 'center';
+                cellProperties.readOnly = true;
+            } else {
+                Handsontable.renderers.NumericRenderer.apply(this, arguments);
+                td.style.backgroundColor = '';
+            }
+        }
+        
+        function variantStockRenderer(instance, td, row, col, prop, value, cellProperties) {
+            const rowData = instance.getSourceDataAtRow(row);
+            if (rowData && rowData.has_variants) {
+                td.innerHTML = '<span style="color:#999;font-size:11px;font-style:italic;">-</span>';
+                td.style.backgroundColor = '#f5f5f5';
+                td.style.textAlign = 'center';
+                cellProperties.readOnly = true;
+            } else {
+                Handsontable.renderers.NumericRenderer.apply(this, arguments);
+                td.style.backgroundColor = '';
+            }
+        }
+        
+        productsHot = new Handsontable(container, {
+            data: jsonData.data,
+            colHeaders: ['', 'ID', 'Nome', 'Slug', 'Descrição', 'SKU', 'Preço Custo', 'Preço Venda', 'Estoque', 'Ativo', 'Ações', 'Criado em'],
+            columns: [
+                {data: 'thumbnail_url', renderer: thumbnailRenderer, readOnly: true, width: 60},
+                {data: 'id', readOnly: true, width: 50},
+                {data: 'name', width: 180},
+                {data: 'slug', width: 130},
+                {data: 'description', width: 200},
+                {data: 'sku', width: 100, renderer: variantFieldRenderer},
+                {data: 'cost_price', type: 'numeric', numericFormat: {pattern: '0,0.00'}, width: 90, renderer: variantPriceRenderer},
+                {data: 'sell_price', type: 'numeric', numericFormat: {pattern: '0,0.00'}, width: 90, renderer: variantPriceRenderer},
+                {data: 'stock_quantity', type: 'numeric', width: 70, renderer: variantStockRenderer},
+                {data: 'is_active', type: 'checkbox', width: 60},
+                {data: 'id', renderer: linksRenderer, readOnly: true, width: 150},
+                {data: 'created_at', readOnly: true, width: 130},
+            ],
+            rowHeaders: true,
+            contextMenu: {
+                items: {
+                    'row_above': {name: 'Inserir linha acima'},
+                    'row_below': {name: 'Inserir linha abaixo'},
+                    'remove_row': {name: 'Remover linha'},
+                    'separator': Handsontable.plugins.ContextMenu.SEPARATOR,
+                    'copy': {name: 'Copiar'},
+                    'cut': {name: 'Recortar'},
+                    'separator2': Handsontable.plugins.ContextMenu.SEPARATOR,
+                    'undo': {name: 'Desfazer'},
+                    'redo': {name: 'Refazer'},
+                }
+            },
             manualColumnResize: true,
-            manualRowResize: true,
             filters: true,
             dropdownMenu: true,
             multiColumnSorting: true,
-            
-            // Selection
-            selectionMode: 'multiple',
-            outsideClickDeselects: false,
-            
-            // Appearance
             stretchH: 'all',
             height: '100%',
-            
-            // Fill handle for autofill
-            fillHandle: {
-                direction: 'vertical',
-                autoInsertRow: false
-            },
-            
-            // Copy/paste
             copyPaste: true,
-            
-            // License
+            fillHandle: true,
+            outsideClickDeselects: false,
             licenseKey: 'non-commercial-and-evaluation',
             
-            // Track changes
-            afterChange: function(changes, source) {
-                if (source === 'loadData' || !changes) return;
-                
-                for (const [row, prop, oldVal, newVal] of changes) {
-                    if (oldVal === newVal) continue;
-                    
-                    const rowData = this.getSourceDataAtRow(row);
-                    pendingChanges.push({
-                        id: rowData.id,
-                        field: prop,
-                        value: newVal,
-                        oldValue: oldVal
-                    });
+            afterCreateRow: function(index, amount) {
+                for (let i = 0; i < amount; i++) {
+                    newProductRows.add(index + i);
+                    this.setDataAtRowProp(index + i, 'is_active', true);
                 }
-                
-                if (pendingChanges.length > 0) {
-                    setStatus(`${pendingChanges.length} alteração(ões) pendente(s). Clique em "Salvar Alterações" para aplicar.`, 'info');
+                this.render();
+            },
+            
+            afterRemoveRow: function(index, amount) {
+                // Update row indices
+                const updated = new Set();
+                newProductRows.forEach(row => {
+                    if (row >= index + amount) {
+                        updated.add(row - amount);
+                    } else if (row < index) {
+                        updated.add(row);
+                    }
+                });
+                newProductRows = updated;
+            },
+            
+            cells: function(row, col) {
+                const cellProperties = {};
+                if (newProductRows.has(row)) {
+                    cellProperties.className = 'new-row';
                 }
+                return cellProperties;
             }
         });
     }
     
-    function saveChanges() {
-        if (pendingChanges.length === 0) {
-            setStatus('Nenhuma alteração para salvar.', 'info');
+    // Navigation functions for product links
+    function viewProductVariants(productId) {
+        // Switch to variants tab and select this product
+        document.querySelector('.tab[onclick*="variants"]').click();
+        setTimeout(() => {
+            const select = document.getElementById('variant-product-select');
+            select.value = productId;
+            loadVariants();
+        }, 100);
+    }
+    
+    function viewProductGroups(productId) {
+        // Open admin page for groups filtered by this product
+        window.open(`/admin/catalog/variantgroup/?product__id__exact=${productId}`, '_blank');
+    }
+    
+    function viewProductAttributes(productId) {
+        // Switch to attributes tab
+        document.querySelector('.tab[onclick*="attributes"]').click();
+    }
+    
+    function addProductRow() {
+        if (!productsHot) {
+            loadProducts();
             return;
         }
+        productsHot.alter('insert_row_below', productsHot.countRows());
+    }
+    
+    function saveProducts() {
+        if (!productsHot) return;
         
-        setStatus('Salvando alterações...', 'info');
+        const allData = productsHot.getSourceData();
+        const toCreate = [];
+        const toUpdate = [];
         
-        fetch('{% url "catalog:bulk_edit_save" %}', {
+        allData.forEach((row, index) => {
+            if (!row.name) return; // Skip empty rows
+            
+            if (newProductRows.has(index) || !row.id) {
+                toCreate.push({
+                    name: row.name,
+                    slug: row.slug || '',
+                    description: row.description || '',
+                    is_active: row.is_active !== false,
+                    // Inline variant fields
+                    sku: row.sku || '',
+                    cost_price: row.cost_price,
+                    sell_price: row.sell_price,
+                    compare_at_price: row.compare_at_price,
+                    stock_quantity: row.stock_quantity || 0
+                });
+            } else {
+                toUpdate.push({
+                    id: row.id,
+                    name: row.name,
+                    slug: row.slug,
+                    description: row.description,
+                    is_active: row.is_active,
+                    // Inline variant fields
+                    has_variants: row.has_variants,
+                    variant_id: row.variant_id,
+                    sku: row.sku || '',
+                    cost_price: row.cost_price,
+                    sell_price: row.sell_price,
+                    compare_at_price: row.compare_at_price,
+                    stock_quantity: row.stock_quantity || 0
+                });
+            }
+        });
+        
+        setStatus('products-status', 'Salvando...', 'info');
+        
+        fetch('{% url "catalog:bulk_products_save" %}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': csrfToken
             },
-            body: JSON.stringify(pendingChanges)
+            body: JSON.stringify({create: toCreate, update: toUpdate})
         })
         .then(response => response.json())
         .then(result => {
             if (result.status === 'ok') {
-                setStatus(`${result.updated} alteração(ões) salva(s) com sucesso!`, 'success');
-                pendingChanges = [];
-                
-                if (result.errors && result.errors.length > 0) {
-                    console.warn('Errors:', result.errors);
-                }
+                setStatus('products-status', 
+                    `✓ ${result.created} criado(s), ${result.updated} atualizado(s)`, 'success');
+                newProductRows.clear();
+                loadProducts(); // Reload to get IDs
             } else {
-                setStatus(`Erro: ${result.message}`, 'error');
+                setStatus('products-status', `Erro: ${result.message}`, 'error');
             }
         })
         .catch(error => {
-            setStatus(`Erro ao salvar: ${error}`, 'error');
+            setStatus('products-status', `Erro: ${error}`, 'error');
         });
     }
     
-    function openGroupModal() {
-        if (!hot) {
-            setStatus('Carregue os dados primeiro.', 'error');
+    // =============================================================================
+    // VARIANTS TAB
+    // =============================================================================
+    
+    function loadVariants() {
+        const productId = document.getElementById('variant-product-select').value;
+        if (!productId) {
+            setStatus('variants-status', 'Selecione um produto.', 'info');
             return;
         }
         
-        const selected = hot.getSelected();
+        currentProductId = productId;
+        setStatus('variants-status', 'Carregando variantes...', 'info');
+        
+        fetch(`{% url "catalog:bulk_variants_data" %}?product_id=${productId}`)
+            .then(response => response.json())
+            .then(data => {
+                initVariantsGrid(data);
+                setStatus('variants-status', `${data.data.length} variantes carregadas.`, 'success');
+            })
+            .catch(error => {
+                setStatus('variants-status', `Erro: ${error}`, 'error');
+            });
+    }
+    
+    function initVariantsGrid(jsonData) {
+        const container = document.getElementById('variants-grid');
+        
+        if (variantsHot) {
+            variantsHot.destroy();
+        }
+        
+        newVariantRows.clear();
+        
+        // Custom renderer for variant thumbnail - clickable to open image manager
+        function variantThumbnailRenderer(instance, td, row, col, prop, value, cellProperties) {
+            Handsontable.renderers.TextRenderer.apply(this, arguments);
+            td.innerHTML = '';
+            const rowData = instance.getSourceDataAtRow(row);
+            
+            if (!rowData || !rowData.id) {
+                // New row - show upload prompt
+                td.innerHTML = '<span style="color:#999;font-size:10px;cursor:pointer;" title="Salve primeiro">💾</span>';
+                td.style.textAlign = 'center';
+                return;
+            }
+            
+            const variantId = rowData.id;
+            const imageCount = rowData.image_count || 0;
+            
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = 'display:flex;flex-direction:column;align-items:center;cursor:pointer;';
+            wrapper.title = `Clique para gerenciar imagens (${imageCount})`;
+            wrapper.onclick = () => openImageModal(variantId, rowData.sku);
+            
+            if (value) {
+                const img = document.createElement('img');
+                img.src = value;
+                img.style.cssText = 'width:36px;height:36px;object-fit:cover;border-radius:3px;';
+                wrapper.appendChild(img);
+            } else {
+                const icon = document.createElement('span');
+                icon.innerHTML = '📷';
+                icon.style.fontSize = '20px';
+                wrapper.appendChild(icon);
+            }
+            
+            // Image count badge
+            const badge = document.createElement('span');
+            badge.style.cssText = 'font-size:9px;color:#666;margin-top:2px;';
+            badge.textContent = `(${imageCount})`;
+            wrapper.appendChild(badge);
+            
+            td.appendChild(wrapper);
+            td.style.textAlign = 'center';
+        }
+        
+        // Build columns dynamically based on attributes
+        const columns = [
+            {data: 'thumbnail_url', renderer: variantThumbnailRenderer, readOnly: true, width: 60, title: '📷'},
+            {data: 'id', readOnly: true, width: 50, title: 'ID'},
+            {data: 'sku', width: 120, title: 'SKU'},
+            {data: 'name', width: 180, title: 'Nome'},
+        ];
+        
+        // Add attribute columns
+        if (jsonData.attribute_columns) {
+            jsonData.attribute_columns.forEach(attr => {
+                columns.push({
+                    data: `attr_${attr.slug}`,
+                    width: 100,
+                    title: attr.name,
+                    type: 'dropdown',
+                    source: attr.options
+                });
+            });
+        }
+        
+        columns.push(
+            {data: 'cost_price', type: 'numeric', numericFormat: {pattern: '0.00'}, width: 100, title: 'Preço Custo'},
+            {data: 'sell_price', type: 'numeric', numericFormat: {pattern: '0.00'}, width: 100, title: 'Preço Venda'},
+            {data: 'compare_at_price', type: 'numeric', numericFormat: {pattern: '0.00'}, width: 100, title: 'Preço Comp.'},
+            {data: 'stock_quantity', type: 'numeric', width: 80, title: 'Estoque'},
+            {data: 'is_active', type: 'checkbox', width: 60, title: 'Ativo'},
+        );
+        
+        variantsHot = new Handsontable(container, {
+            data: jsonData.data,
+            colHeaders: columns.map(c => c.title),
+            columns: columns,
+            rowHeaders: true,
+            contextMenu: {
+                items: {
+                    'row_above': {name: 'Inserir linha acima'},
+                    'row_below': {name: 'Inserir linha abaixo'},
+                    'duplicate_row': {
+                        name: 'Duplicar linha',
+                        callback: function(key, selection) {
+                            duplicateRow(this, selection[0].start.row);
+                        }
+                    },
+                    'remove_row': {name: 'Remover linha'},
+                    'separator': Handsontable.plugins.ContextMenu.SEPARATOR,
+                    'copy': {name: 'Copiar'},
+                    'cut': {name: 'Recortar'},
+                    'separator2': Handsontable.plugins.ContextMenu.SEPARATOR,
+                    'undo': {name: 'Desfazer'},
+                    'redo': {name: 'Refazer'},
+                }
+            },
+            manualColumnResize: true,
+            filters: true,
+            dropdownMenu: true,
+            multiColumnSorting: true,
+            stretchH: 'all',
+            height: '100%',
+            copyPaste: true,
+            fillHandle: true,
+            outsideClickDeselects: false,
+            licenseKey: 'non-commercial-and-evaluation',
+            
+            afterCreateRow: function(index, amount) {
+                for (let i = 0; i < amount; i++) {
+                    newVariantRows.add(index + i);
+                    this.setDataAtRowProp(index + i, 'is_active', true);
+                    this.setDataAtRowProp(index + i, 'stock_quantity', 0);
+                }
+                this.render();
+            },
+            
+            afterRemoveRow: function(index, amount) {
+                const updated = new Set();
+                newVariantRows.forEach(row => {
+                    if (row >= index + amount) {
+                        updated.add(row - amount);
+                    } else if (row < index) {
+                        updated.add(row);
+                    }
+                });
+                newVariantRows = updated;
+            },
+            
+            cells: function(row, col) {
+                const cellProperties = {};
+                if (newVariantRows.has(row)) {
+                    cellProperties.className = 'new-row';
+                }
+                return cellProperties;
+            }
+        });
+        
+        // Store attribute info for saving
+        variantsHot.attributeColumns = jsonData.attribute_columns || [];
+    }
+    
+    function duplicateRow(hot, rowIndex) {
+        const rowData = hot.getSourceDataAtRow(rowIndex);
+        const newRow = {...rowData, id: null, sku: rowData.sku + '_copy'};
+        
+        hot.alter('insert_row_below', rowIndex);
+        const newRowIndex = rowIndex + 1;
+        
+        Object.keys(newRow).forEach(key => {
+            hot.setDataAtRowProp(newRowIndex, key, newRow[key]);
+        });
+        
+        newVariantRows.add(newRowIndex);
+        hot.render();
+    }
+    
+    function duplicateVariantRows() {
+        if (!variantsHot) return;
+        
+        const selected = variantsHot.getSelected();
         if (!selected || selected.length === 0) {
-            setStatus('Selecione pelo menos uma linha.', 'error');
+            setStatus('variants-status', 'Selecione pelo menos uma linha para duplicar.', 'warning');
             return;
         }
+        
+        // Get unique rows
+        const rows = new Set();
+        selected.forEach(([row1, col1, row2, col2]) => {
+            for (let r = Math.min(row1, row2); r <= Math.max(row1, row2); r++) {
+                rows.add(r);
+            }
+        });
+        
+        // Duplicate each row (in reverse to maintain indices)
+        const sortedRows = Array.from(rows).sort((a, b) => b - a);
+        sortedRows.forEach(row => {
+            duplicateRow(variantsHot, row);
+        });
+        
+        setStatus('variants-status', `${rows.size} linha(s) duplicada(s).`, 'success');
+    }
+    
+    function addVariantRow() {
+        if (!variantsHot) {
+            setStatus('variants-status', 'Carregue as variantes de um produto primeiro.', 'warning');
+            return;
+        }
+        variantsHot.alter('insert_row_below', variantsHot.countRows());
+    }
+    
+    function saveVariants() {
+        if (!variantsHot || !currentProductId) return;
+        
+        const allData = variantsHot.getSourceData();
+        const attrColumns = variantsHot.attributeColumns || [];
+        const toCreate = [];
+        const toUpdate = [];
+        
+        allData.forEach((row, index) => {
+            if (!row.sku) return; // Skip empty rows
+            
+            // Extract attributes
+            const attributes = {};
+            attrColumns.forEach(attr => {
+                const val = row[`attr_${attr.slug}`];
+                if (val) {
+                    attributes[attr.slug] = val;
+                }
+            });
+            
+            const variantData = {
+                sku: row.sku,
+                name: row.name || '',
+                cost_price: row.cost_price,
+                sell_price: row.sell_price,
+                compare_at_price: row.compare_at_price,
+                stock_quantity: row.stock_quantity || 0,
+                is_active: row.is_active !== false,
+                attributes: attributes
+            };
+            
+            if (newVariantRows.has(index) || !row.id) {
+                variantData.product_id = currentProductId;
+                toCreate.push(variantData);
+            } else {
+                variantData.id = row.id;
+                toUpdate.push(variantData);
+            }
+        });
+        
+        setStatus('variants-status', 'Salvando...', 'info');
+        
+        fetch('{% url "catalog:bulk_variants_save" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({create: toCreate, update: toUpdate})
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'ok') {
+                setStatus('variants-status', 
+                    `✓ ${result.created} criada(s), ${result.updated} atualizada(s)`, 'success');
+                newVariantRows.clear();
+                loadVariants(); // Reload
+            } else {
+                setStatus('variants-status', `Erro: ${result.message}`, 'error');
+            }
+        })
+        .catch(error => {
+            setStatus('variants-status', `Erro: ${error}`, 'error');
+        });
+    }
+    
+    // =============================================================================
+    // ATTRIBUTES TAB
+    // =============================================================================
+    
+    function loadAttributeOptions() {
+        const attrTypeId = document.getElementById('attr-type-select').value;
+        if (!attrTypeId) {
+            setStatus('attributes-status', 'Selecione um tipo de atributo.', 'info');
+            return;
+        }
+        
+        currentAttrTypeId = attrTypeId;
+        setStatus('attributes-status', 'Carregando opções...', 'info');
+        
+        fetch(`{% url "catalog:bulk_attr_options_data" %}?attribute_type_id=${attrTypeId}`)
+            .then(response => response.json())
+            .then(data => {
+                initAttributesGrid(data);
+                setStatus('attributes-status', `${data.data.length} opções carregadas.`, 'success');
+            })
+            .catch(error => {
+                setStatus('attributes-status', `Erro: ${error}`, 'error');
+            });
+    }
+    
+    function initAttributesGrid(jsonData) {
+        const container = document.getElementById('attributes-grid');
+        
+        if (attributesHot) {
+            attributesHot.destroy();
+        }
+        
+        newAttrOptionRows.clear();
+        
+        // Custom renderer for color preview
+        function colorRenderer(instance, td, row, col, prop, value, cellProperties) {
+            Handsontable.renderers.TextRenderer.apply(this, arguments);
+            if (value && value.match(/^#[0-9A-Fa-f]{6}$/)) {
+                td.innerHTML = `
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="display:inline-block;width:20px;height:20px;background:${value};border:1px solid #ccc;border-radius:3px;"></span>
+                        <span>${value}</span>
+                    </div>
+                `;
+            } else {
+                td.textContent = value || '';
+            }
+        }
+        
+        attributesHot = new Handsontable(container, {
+            data: jsonData.data,
+            colHeaders: ['ID', 'Valor', 'Valor de Exibição', 'Cor Hex', 'Ordem'],
+            columns: [
+                {data: 'id', readOnly: true, width: 50},
+                {data: 'value', width: 150},
+                {data: 'display_value', width: 150},
+                {data: 'color_hex', width: 130, renderer: colorRenderer},
+                {data: 'display_order', type: 'numeric', width: 80},
+            ],
+            rowHeaders: true,
+            contextMenu: true,
+            manualColumnResize: true,
+            stretchH: 'all',
+            height: '100%',
+            copyPaste: true,
+            fillHandle: true,
+            outsideClickDeselects: false,
+            licenseKey: 'non-commercial-and-evaluation',
+            
+            afterCreateRow: function(index, amount) {
+                for (let i = 0; i < amount; i++) {
+                    newAttrOptionRows.add(index + i);
+                    this.setDataAtRowProp(index + i, 'display_order', 0);
+                }
+                this.render();
+            },
+            
+            cells: function(row, col) {
+                const cellProperties = {};
+                if (newAttrOptionRows.has(row)) {
+                    cellProperties.className = 'new-row';
+                }
+                return cellProperties;
+            }
+        });
+    }
+    
+    function addAttributeOptionRow() {
+        if (!attributesHot) {
+            setStatus('attributes-status', 'Selecione um tipo de atributo primeiro.', 'warning');
+            return;
+        }
+        attributesHot.alter('insert_row_below', attributesHot.countRows());
+    }
+    
+    function saveAttributeOptions() {
+        if (!attributesHot || !currentAttrTypeId) return;
+        
+        const allData = attributesHot.getSourceData();
+        const toCreate = [];
+        const toUpdate = [];
+        
+        allData.forEach((row, index) => {
+            if (!row.value) return;
+            
+            const optionData = {
+                value: row.value,
+                display_value: row.display_value || '',
+                color_hex: row.color_hex || '',
+                display_order: row.display_order || 0
+            };
+            
+            if (newAttrOptionRows.has(index) || !row.id) {
+                optionData.attribute_type_id = currentAttrTypeId;
+                toCreate.push(optionData);
+            } else {
+                optionData.id = row.id;
+                toUpdate.push(optionData);
+            }
+        });
+        
+        setStatus('attributes-status', 'Salvando...', 'info');
+        
+        fetch('{% url "catalog:bulk_attr_options_save" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({create: toCreate, update: toUpdate})
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'ok') {
+                setStatus('attributes-status', 
+                    `✓ ${result.created} criada(s), ${result.updated} atualizada(s)`, 'success');
+                newAttrOptionRows.clear();
+                loadAttributeOptions();
+            } else {
+                setStatus('attributes-status', `Erro: ${result.message}`, 'error');
+            }
+        })
+        .catch(error => {
+            setStatus('attributes-status', `Erro: ${error}`, 'error');
+        });
+    }
+    
+    // =============================================================================
+    // GROUPS TAB
+    // =============================================================================
+    
+    let groupsHot = null;
+    let currentGroupProductId = null;
+    let newGroupRows = new Set();
+    
+    function loadGroups() {
+        const productId = document.getElementById('group-product-select').value;
+        if (!productId) {
+            setStatus('groups-status', 'Selecione um produto.', 'info');
+            return;
+        }
+        
+        currentGroupProductId = productId;
+        setStatus('groups-status', 'Carregando grupos...', 'info');
+        
+        fetch(`{% url "catalog:bulk_groups_data" %}?product_id=${productId}`)
+            .then(response => response.json())
+            .then(data => {
+                initGroupsGrid(data);
+                setStatus('groups-status', `${data.data.length} grupo(s) carregado(s).`, 'success');
+            })
+            .catch(error => {
+                setStatus('groups-status', `Erro: ${error}`, 'error');
+            });
+    }
+    
+    function initGroupsGrid(jsonData) {
+        const container = document.getElementById('groups-grid');
+        
+        if (groupsHot) {
+            groupsHot.destroy();
+        }
+        
+        newGroupRows.clear();
+        
+        // Renderer for variant count with link
+        function variantCountRenderer(instance, td, row, col, prop, value, cellProperties) {
+            Handsontable.renderers.TextRenderer.apply(this, arguments);
+            const rowData = instance.getSourceDataAtRow(row);
+            if (rowData && rowData.id) {
+                td.innerHTML = `<a href="#" onclick="openGroupVariantsModal(${rowData.id}, '${rowData.name}'); return false;" 
+                    style="color:#417690;">${value || 0} variantes</a>`;
+            } else {
+                td.textContent = value || 0;
+            }
+            td.style.textAlign = 'center';
+        }
+        
+        groupsHot = new Handsontable(container, {
+            data: jsonData.data,
+            colHeaders: ['ID', 'Nome', 'Slug', 'Descrição', 'Ativo', 'Variantes'],
+            columns: [
+                {data: 'id', readOnly: true, width: 50},
+                {data: 'name', width: 200},
+                {data: 'slug', width: 150},
+                {data: 'description', width: 300},
+                {data: 'is_active', type: 'checkbox', width: 60},
+                {data: 'variant_count', renderer: variantCountRenderer, readOnly: true, width: 100},
+            ],
+            rowHeaders: true,
+            contextMenu: {
+                items: {
+                    'row_above': {name: 'Inserir linha acima'},
+                    'row_below': {name: 'Inserir linha abaixo'},
+                    'remove_row': {name: 'Remover linha'},
+                    'separator': Handsontable.plugins.ContextMenu.SEPARATOR,
+                    'copy': {name: 'Copiar'},
+                    'cut': {name: 'Recortar'},
+                }
+            },
+            manualColumnResize: true,
+            stretchH: 'all',
+            height: '100%',
+            copyPaste: true,
+            fillHandle: true,
+            outsideClickDeselects: false,
+            licenseKey: 'non-commercial-and-evaluation',
+            
+            afterCreateRow: function(index, amount) {
+                for (let i = 0; i < amount; i++) {
+                    newGroupRows.add(index + i);
+                    this.setDataAtRowProp(index + i, 'is_active', true);
+                }
+                this.render();
+            },
+            
+            cells: function(row, col) {
+                const cellProperties = {};
+                if (newGroupRows.has(row)) {
+                    cellProperties.className = 'new-row';
+                }
+                return cellProperties;
+            }
+        });
+    }
+    
+    function addGroupRow() {
+        if (!groupsHot) {
+            setStatus('groups-status', 'Selecione um produto primeiro.', 'warning');
+            return;
+        }
+        groupsHot.alter('insert_row_below', groupsHot.countRows());
+    }
+    
+    function saveGroups() {
+        if (!groupsHot || !currentGroupProductId) return;
+        
+        const allData = groupsHot.getSourceData();
+        const toCreate = [];
+        const toUpdate = [];
+        
+        allData.forEach((row, index) => {
+            if (!row.name) return;
+            
+            if (newGroupRows.has(index) || !row.id) {
+                toCreate.push({
+                    product_id: currentGroupProductId,
+                    name: row.name,
+                    slug: row.slug || '',
+                    description: row.description || '',
+                    is_active: row.is_active !== false
+                });
+            } else {
+                toUpdate.push({
+                    id: row.id,
+                    name: row.name,
+                    slug: row.slug,
+                    description: row.description,
+                    is_active: row.is_active
+                });
+            }
+        });
+        
+        setStatus('groups-status', 'Salvando...', 'info');
+        
+        fetch('{% url "catalog:bulk_groups_save" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({create: toCreate, update: toUpdate})
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'ok') {
+                setStatus('groups-status', 
+                    `✓ ${result.created} criado(s), ${result.updated} atualizado(s)`, 'success');
+                newGroupRows.clear();
+                loadGroups();
+            } else {
+                setStatus('groups-status', `Erro: ${result.message}`, 'error');
+            }
+        })
+        .catch(error => {
+            setStatus('groups-status', `Erro: ${error}`, 'error');
+        });
+    }
+    
+    function openGroupVariantsModal(groupId, groupName) {
+        // For now, open admin page - could be enhanced with a modal
+        window.open(`/admin/catalog/variantgroupmembership/?variant_group__id__exact=${groupId}`, '_blank');
+    }
+    
+    // =============================================================================
+    // MODALS
+    // =============================================================================
+    
+    function getSelectedVariantIds() {
+        if (!variantsHot) return [];
+        
+        const selected = variantsHot.getSelected();
+        console.log('Selected ranges:', selected);
+        
+        if (!selected || selected.length === 0) return [];
+        
+        const variantIds = [];
+        for (const selection of selected) {
+            const [row1, col1, row2, col2] = selection;
+            const startRow = Math.min(row1, row2);
+            const endRow = Math.max(row1, row2);
+            
+            for (let row = startRow; row <= endRow; row++) {
+                const rowData = variantsHot.getSourceDataAtRow(row);
+                console.log('Row', row, 'data:', rowData);
+                if (rowData && rowData.id && !variantIds.includes(rowData.id)) {
+                    variantIds.push(rowData.id);
+                }
+            }
+        }
+        console.log('Selected variant IDs:', variantIds);
+        return variantIds;
+    }
+    
+    let pendingVariantIds = [];
+    
+    function openGroupModal() {
+        if (!variantsHot) {
+            setStatus('variants-status', 'Carregue as variantes primeiro.', 'error');
+            return;
+        }
+        
+        pendingVariantIds = getSelectedVariantIds();
+        console.log('Pending variant IDs:', pendingVariantIds);
+        
+        if (pendingVariantIds.length === 0) {
+            setStatus('variants-status', 'Selecione pelo menos uma variante salva. Dica: Clique no número da linha à esquerda para selecionar a linha inteira.', 'warning');
+            return;
+        }
+        
+        // Show how many variants are selected
+        document.getElementById('selected-variants-info').textContent = 
+            `${pendingVariantIds.length} variante(s) selecionada(s)`;
+        
+        // Filter groups dropdown to show only groups from current product
+        const select = document.getElementById('modal-group-select');
+        const currentProdId = currentProductId;
+        
+        Array.from(select.options).forEach(option => {
+            if (option.value === '') return;
+            const prodId = option.dataset.product;
+            option.style.display = (prodId == currentProdId) ? '' : 'none';
+        });
+        
+        // Reset form
+        document.querySelector('input[name="group-action"][value="existing"]').checked = true;
+        toggleGroupForm();
+        document.getElementById('new-group-name').value = '';
+        document.getElementById('new-group-slug').value = '';
+        document.getElementById('new-group-description').value = '';
         
         document.getElementById('group-modal').style.display = 'block';
     }
     
     function closeGroupModal() {
         document.getElementById('group-modal').style.display = 'none';
+        pendingVariantIds = [];
     }
     
-    function addToGroup() {
+    function toggleGroupForm() {
+        const action = document.querySelector('input[name="group-action"]:checked').value;
+        document.getElementById('existing-group-form').style.display = (action === 'existing') ? 'block' : 'none';
+        document.getElementById('new-group-form').style.display = (action === 'new') ? 'block' : 'none';
+    }
+    
+    function submitGroupAction() {
+        const action = document.querySelector('input[name="group-action"]:checked').value;
+        
+        if (action === 'existing') {
+            addToExistingGroup();
+        } else {
+            createNewGroupWithVariants();
+        }
+    }
+    
+    function addToExistingGroup() {
         const groupId = document.getElementById('modal-group-select').value;
         if (!groupId) {
             alert('Selecione um grupo.');
             return;
         }
         
-        const selected = hot.getSelected();
-        const variantIds = new Set();
-        
-        for (const [row1, col1, row2, col2] of selected) {
-            for (let row = Math.min(row1, row2); row <= Math.max(row1, row2); row++) {
-                const rowData = hot.getSourceDataAtRow(row);
-                if (rowData && rowData.id) {
-                    variantIds.add(rowData.id);
-                }
-            }
-        }
-        
-        if (variantIds.size === 0) {
+        if (pendingVariantIds.length === 0) {
             alert('Nenhuma variante selecionada.');
             return;
         }
@@ -332,44 +1484,314 @@
             },
             body: JSON.stringify({
                 group_id: groupId,
-                variant_ids: Array.from(variantIds)
+                variant_ids: pendingVariantIds
             })
         })
         .then(response => response.json())
         .then(result => {
             closeGroupModal();
             if (result.status === 'ok') {
-                setStatus(`${result.added} variante(s) adicionada(s) ao grupo!`, 'success');
-                loadData(); // Refresh to show updated groups
+                setStatus('variants-status', `✓ ${result.added} variante(s) adicionada(s) ao grupo!`, 'success');
             } else {
-                setStatus(`Erro: ${result.message}`, 'error');
+                setStatus('variants-status', `Erro: ${result.message}`, 'error');
             }
         })
         .catch(error => {
             closeGroupModal();
-            setStatus(`Erro: ${error}`, 'error');
+            setStatus('variants-status', `Erro: ${error}`, 'error');
         });
     }
     
-    // Clear group selection when product changes
-    document.getElementById('product-select').addEventListener('change', function() {
-        if (this.value) {
-            document.getElementById('group-select').value = '';
+    function createNewGroupWithVariants() {
+        const name = document.getElementById('new-group-name').value.trim();
+        if (!name) {
+            alert('O nome do grupo é obrigatório.');
+            return;
         }
-    });
-    
-    document.getElementById('group-select').addEventListener('change', function() {
-        if (this.value) {
-            document.getElementById('product-select').value = '';
+        
+        if (pendingVariantIds.length === 0) {
+            alert('Nenhuma variante selecionada.');
+            return;
         }
-    });
-    
-    // Close modal on outside click
-    window.onclick = function(event) {
-        const modal = document.getElementById('group-modal');
-        if (event.target === modal) {
+        
+        const slug = document.getElementById('new-group-slug').value.trim();
+        const description = document.getElementById('new-group-description').value.trim();
+        
+        fetch('{% url "catalog:bulk_create_group_with_variants" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                product_id: currentProductId,
+                name: name,
+                slug: slug,
+                description: description,
+                variant_ids: pendingVariantIds
+            })
+        })
+        .then(response => response.json())
+        .then(result => {
             closeGroupModal();
+            if (result.status === 'ok') {
+                setStatus('variants-status', 
+                    `✓ Grupo "${result.group_name}" criado com ${result.variants_added} variante(s)!`, 'success');
+                // Add new group to dropdown
+                const select = document.getElementById('modal-group-select');
+                const option = document.createElement('option');
+                option.value = result.group_id;
+                option.dataset.product = currentProductId;
+                option.textContent = result.group_name;
+                select.appendChild(option);
+            } else {
+                setStatus('variants-status', `Erro: ${result.message}`, 'error');
+            }
+        })
+        .catch(error => {
+            closeGroupModal();
+            setStatus('variants-status', `Erro: ${error}`, 'error');
+        });
+    }
+    
+    // Auto-generate slug for new group
+    document.getElementById('new-group-name').addEventListener('input', function() {
+        const slug = this.value.toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
+        document.getElementById('new-group-slug').value = slug;
+    });
+    
+    function openNewAttrTypeModal() {
+        document.getElementById('attr-type-modal').style.display = 'block';
+    }
+    
+    function closeAttrTypeModal() {
+        document.getElementById('attr-type-modal').style.display = 'none';
+    }
+    
+    function createAttributeType() {
+        const name = document.getElementById('new-attr-type-name').value;
+        const slug = document.getElementById('new-attr-type-slug').value;
+        const datatype = document.getElementById('new-attr-type-datatype').value;
+        
+        if (!name || !slug) {
+            alert('Nome e slug são obrigatórios.');
+            return;
+        }
+        
+        fetch('{% url "catalog:bulk_create_attr_type" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({name, slug, datatype})
+        })
+        .then(response => response.json())
+        .then(result => {
+            closeAttrTypeModal();
+            if (result.status === 'ok') {
+                // Add to dropdown and select
+                const select = document.getElementById('attr-type-select');
+                const option = new Option(name, result.id);
+                select.add(option);
+                select.value = result.id;
+                setStatus('attributes-status', `Tipo "${name}" criado com sucesso!`, 'success');
+            } else {
+                setStatus('attributes-status', `Erro: ${result.message}`, 'error');
+            }
+        })
+        .catch(error => {
+            closeAttrTypeModal();
+            setStatus('attributes-status', `Erro: ${error}`, 'error');
+        });
+    }
+    
+    // =============================================================================
+    // IMAGE MANAGEMENT
+    // =============================================================================
+    
+    function openImageModal(variantId, variantSku) {
+        currentImageVariantId = variantId;
+        document.getElementById('image-modal-sku').textContent = variantSku;
+        document.getElementById('image-modal').style.display = 'block';
+        document.getElementById('image-upload-status').textContent = '';
+        loadVariantImages(variantId);
+    }
+    
+    function closeImageModal() {
+        document.getElementById('image-modal').style.display = 'none';
+        currentImageVariantId = null;
+        // Refresh variants to update thumbnails
+        if (currentProductId) {
+            loadVariants();
         }
     }
+    
+    function loadVariantImages(variantId) {
+        const gallery = document.getElementById('image-gallery');
+        gallery.innerHTML = '<span style="color:#999;">Carregando...</span>';
+        
+        fetch(`/catalog/bulk-edit/variants/${variantId}/images/`)
+            .then(response => response.json())
+            .then(data => {
+                renderImageGallery(data.images || []);
+            })
+            .catch(error => {
+                gallery.innerHTML = `<span style="color:red;">Erro: ${error}</span>`;
+            });
+    }
+    
+    function renderImageGallery(images) {
+        const gallery = document.getElementById('image-gallery');
+        gallery.innerHTML = '';
+        
+        if (images.length === 0) {
+            gallery.innerHTML = '<span style="color:#999;font-style:italic;">Nenhuma imagem. Arraste imagens acima para adicionar.</span>';
+            return;
+        }
+        
+        images.forEach(img => {
+            const item = document.createElement('div');
+            item.className = 'image-item' + (img.is_primary ? ' primary' : '');
+            
+            item.innerHTML = `
+                ${img.is_primary ? '<span class="primary-badge">Principal</span>' : ''}
+                <img src="${img.thumbnail_url}" alt="${img.alt_text || ''}" onclick="window.open('${img.full_url}', '_blank')">
+                <div class="image-actions">
+                    ${!img.is_primary ? `<button onclick="setImagePrimary(${img.id})" title="Definir como principal">⭐</button>` : ''}
+                    <button onclick="deleteImage(${img.id})" title="Excluir">🗑️</button>
+                </div>
+            `;
+            
+            gallery.appendChild(item);
+        });
+    }
+    
+    function uploadImages(files) {
+        if (!currentImageVariantId) return;
+        
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+            formData.append('images', files[i]);
+        }
+        
+        const status = document.getElementById('image-upload-status');
+        status.innerHTML = '<span style="color:#17a2b8;">⏳ Enviando...</span>';
+        
+        fetch(`/catalog/bulk-edit/variants/${currentImageVariantId}/images/upload/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                status.innerHTML = `<span style="color:#28a745;">✓ ${data.uploaded} imagem(ns) enviada(s)</span>`;
+                loadVariantImages(currentImageVariantId);
+            } else {
+                status.innerHTML = `<span style="color:#dc3545;">Erro: ${data.message}</span>`;
+            }
+        })
+        .catch(error => {
+            status.innerHTML = `<span style="color:#dc3545;">Erro: ${error}</span>`;
+        });
+    }
+    
+    function deleteImage(imageId) {
+        if (!confirm('Excluir esta imagem?')) return;
+        
+        fetch(`/catalog/bulk-edit/images/${imageId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                loadVariantImages(currentImageVariantId);
+            } else {
+                alert('Erro: ' + data.message);
+            }
+        });
+    }
+    
+    function setImagePrimary(imageId) {
+        fetch(`/catalog/bulk-edit/images/${imageId}/set-primary/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                loadVariantImages(currentImageVariantId);
+            } else {
+                alert('Erro: ' + data.message);
+            }
+        });
+    }
+    
+    // Setup drag and drop for image upload
+    function setupImageUpload() {
+        const dropZone = document.getElementById('image-drop-zone');
+        const fileInput = document.getElementById('image-file-input');
+        
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                uploadImages(e.target.files);
+                e.target.value = ''; // Reset input
+            }
+        });
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                uploadImages(e.dataTransfer.files);
+            }
+        });
+    }
+    
+    // Close modals on outside click
+    window.onclick = function(event) {
+        if (event.target.classList.contains('modal')) {
+            event.target.style.display = 'none';
+            if (event.target.id === 'image-modal') {
+                closeImageModal();
+            }
+        }
+    }
+    
+    // Auto-generate slug from name
+    document.getElementById('new-attr-type-name').addEventListener('input', function() {
+        const slug = this.value.toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
+        document.getElementById('new-attr-type-slug').value = slug;
+    });
+    
+    // Load products on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        loadProducts();
+        setupImageUpload();
+    });
 </script>
 {% endblock %}

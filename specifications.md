@@ -72,3 +72,23 @@ Um sistema Django com Docker Compose para gerenciar produtos com variantes dinâ
 Vamos fazer conforme as suas sugestões. 
 Seria bom sim ter o histórico de preços para auditoria
 Talvez, até possamos usar Django templates + HTMX se achar mais simples, mas eu acho que seria interessante já fazer tudo com API REST/GraphQL em mente.
+
+
+# Specifications v1.0.1
+
+Eu havia pensado em poder inserir novos produtos em uma espécie de tabela tal como funciona no excel. E para cada um destes produtos eu pudesse visualizar a parte todas as variantes destes produtos e também editá-los numa tabela semelhante ao excel. Assim, eu poderia, por exemplo, simplesmente copiar e colar ou duplicar a linha de uma variante e alterar os campos que tem variação de uma variante para a outra.
+
+
+# Specifications v1.0.2
+
+Seria bom que cada produto tivesse um link que direcionasse para as suas variantes, para os seus grupos e para os seus atributos/opções. 
+
+Também seria bom que na tabela mostrasse também as imagens (thumbnails) de cada produto, variante ou grupo de produto e que eu pudesse fazer upload das imagens direto na tabela de bulk edit.
+
+# Specifications v1.0.3
+
+O botão de "Adicionar a Grupo" não está funcionando, mesmo após selecionar as linhas que desejo usar para formar um novo grupo o sistema diz: "Selecione pelo menos uma linha".
+Além disso, seria bom que o sistema também tivesse uma tab contendo os grupos de produtos.
+
+# Specifications v1.0.4
+Também seria bom que ao selecionar um produto específico na tab de variantes, 
