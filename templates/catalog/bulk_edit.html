@@ -127,7 +127,7 @@
         color: #333;
         font-weight: 500;
     }
-    .modal-content select, .modal-content input, .modal-content textarea {
+    .modal-content select, .modal-content textarea {
         width: 100%;
         padding: 8px;
         margin: 5px 0 10px 0;
@@ -136,6 +136,26 @@
         border-radius: 4px;
         color: #333;
         background-color: #fff;
+    }
+    .modal-content input[type="text"],
+    .modal-content input[type="number"],
+    .modal-content input[type="email"],
+    .modal-content input[type="password"],
+    .modal-content input[type="search"] {
+        width: 100%;
+        padding: 8px;
+        margin: 5px 0 10px 0;
+        box-sizing: border-box;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        color: #333;
+        background-color: #fff;
+    }
+    .modal-content input[type="checkbox"],
+    .modal-content input[type="radio"] {
+        width: auto;
+        margin: 0;
+        flex-shrink: 0;
     }
     .modal-content p {
         color: #666;
@@ -428,7 +448,7 @@
         <div class="controls">
             <button type="button" onclick="addCategoryRow()">➕ Nova Categoria</button>
             <button type="button" class="success" onclick="saveCategories()">💾 Salvar Categorias</button>
-            <button type="button" class="secondary" onclick="loadCategories()">🔄 Recarregar</button>
+            <button type="button" class="secondary" onclick="loadCategoriesGrid()">🔄 Recarregar</button>
             <span style="margin-left: 20px; border-left: 1px solid #ccc; padding-left: 15px;">
                 <button type="button" class="secondary" onclick="expandAllCategories()">📂 Expandir Tudo</button>
                 <button type="button" class="secondary" onclick="collapseAllCategories()">📁 Colapsar Tudo</button>
@@ -630,28 +650,34 @@
         </p>
         
         <!-- Search input -->
-        <div style="margin-bottom: 15px;">
+        <div style="margin-bottom: 10px; flex-shrink: 0;">
             <input type="text" id="category-search" placeholder="🔍 Buscar categorias..." 
                    style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
                    oninput="searchCategories(this.value)">
         </div>
         
+        <!-- Expand/Collapse buttons -->
+        <div style="margin-bottom: 10px; display: flex; gap: 10px; flex-shrink: 0;">
+            <button type="button" class="secondary" onclick="expandAllModalCategories()" style="padding: 6px 12px; font-size: 12px;">📂 Expandir Tudo</button>
+            <button type="button" class="secondary" onclick="collapseAllModalCategories()" style="padding: 6px 12px; font-size: 12px;">📁 Colapsar Tudo</button>
+        </div>
+        
         <!-- Selected categories -->
-        <div id="selected-categories" style="margin-bottom: 15px; min-height: 30px;">
+        <div id="selected-categories" style="margin-bottom: 10px; flex-shrink: 0;">
             <label style="font-weight: 500; margin-bottom: 5px; display: block;">Selecionadas:</label>
-            <div id="selected-cats-container" style="display: flex; flex-wrap: wrap; gap: 5px;">
+            <div id="selected-cats-container" style="display: flex; flex-wrap: wrap; gap: 5px; min-height: 28px; padding: 5px; background: #f9f9f9; border-radius: 4px; border: 1px solid #eee;">
                 <!-- Selected category badges will be inserted here -->
             </div>
         </div>
         
         <!-- Available categories -->
-        <div style="flex: 1; overflow: auto; min-height: 200px; max-height: 300px; border: 1px solid #ddd; border-radius: 4px;">
-            <div id="categories-list" style="padding: 10px;">
+        <div style="flex: 1; overflow: auto; min-height: 150px; border: 1px solid #ddd; border-radius: 4px; background: #fff;">
+            <div id="categories-list" style="padding: 0; background: #fff;">
                 <!-- Category checkboxes will be inserted here -->
             </div>
         </div>
         
-        <div class="modal-buttons" style="margin-top: 15px;">
+        <div class="modal-buttons" style="margin-top: 15px; flex-shrink: 0;">
             <button type="button" class="secondary" onclick="closeCategoriesModal()">Cancelar</button>
             <button type="button" class="success" onclick="saveProductCategories()">Salvar</button>
         </div>
@@ -1438,13 +1464,13 @@
         document.getElementById('categories-modal').style.display = 'block';
         
         // Load categories from server
-        await loadCategories();
+        await loadCategoriesForModal();
         
         renderSelectedCategories();
         renderCategoriesList('');
     }
     
-    async function loadCategories() {
+    async function loadCategoriesForModal() {
         try {
             const response = await fetch('/catalog/bulk-edit/categories/search/');
             const data = await response.json();
@@ -1477,12 +1503,58 @@
         `).join('');
     }
     
+    // Track collapsed categories in modal
+    let modalCollapsedCategories = new Set();
+    
+    function expandAllModalCategories() {
+        modalCollapsedCategories.clear();
+        renderCategoriesList(document.getElementById('category-search').value.toLowerCase().trim());
+    }
+    
+    function collapseAllModalCategories() {
+        // Collapse all categories that have children
+        allCategories.forEach(cat => {
+            if (cat.has_children) {
+                modalCollapsedCategories.add(cat.id);
+            }
+        });
+        renderCategoriesList(document.getElementById('category-search').value.toLowerCase().trim());
+    }
+    
+    function isModalCategoryCollapsed(catId) {
+        return modalCollapsedCategories.has(catId);
+    }
+    
+    function isCategoryHiddenByParent(cat) {
+        // Check if any ancestor is collapsed
+        let parentId = cat.parent_id;
+        while (parentId) {
+            if (modalCollapsedCategories.has(parentId)) {
+                return true;
+            }
+            const parent = allCategories.find(c => c.id === parentId);
+            parentId = parent ? parent.parent_id : null;
+        }
+        return false;
+    }
+    
+    function toggleModalCategoryCollapse(catId) {
+        if (modalCollapsedCategories.has(catId)) {
+            modalCollapsedCategories.delete(catId);
+        } else {
+            modalCollapsedCategories.add(catId);
+        }
+        renderCategoriesList(document.getElementById('category-search').value.toLowerCase().trim());
+    }
+    
     function renderCategoriesList(query) {
         const container = document.getElementById('categories-list');
         
-        // Filter categories by query
+        // Filter categories by query (if searching, show all matching regardless of collapse)
         let filtered = allCategories;
-        if (query) {
+        const isSearching = query && query.length > 0;
+        
+        if (isSearching) {
             filtered = allCategories.filter(c => 
                 c.name.toLowerCase().includes(query) || 
                 c.full_path.toLowerCase().includes(query)
@@ -1490,36 +1562,53 @@
         }
         
         if (filtered.length === 0) {
-            container.innerHTML = '<p style="color: #666; text-align: center;">Nenhuma categoria encontrada</p>';
+            container.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">Nenhuma categoria encontrada</p>';
             return;
         }
         
         let html = '';
         
-        // Render categories with indentation based on level
-        filtered.sort((a, b) => a.full_path.localeCompare(b.full_path)).forEach(cat => {
+        // Render categories (already in hierarchical order from server)
+        filtered.forEach(cat => {
+            // Skip if hidden by collapsed parent (unless searching)
+            if (!isSearching && isCategoryHiddenByParent(cat)) {
+                return;
+            }
+            
             const isSelected = selectedCategorySlugs.has(cat.slug);
             const indent = cat.level * 20;
             const bgColor = isSelected ? '#e3f2fd' : 'transparent';
+            const hasChildren = cat.has_children;
+            const isCollapsed = modalCollapsedCategories.has(cat.id);
+            
+            // Toggle icon
+            let toggleIcon = '';
+            if (hasChildren) {
+                const icon = isCollapsed ? '▶' : '▼';
+                toggleIcon = `<span onclick="event.stopPropagation(); toggleModalCategoryCollapse(${cat.id})" 
+                                   style="cursor: pointer; width: 16px; display: inline-block; text-align: center; font-size: 10px; color: #666; margin-right: 4px;">${icon}</span>`;
+            } else if (cat.level > 0) {
+                toggleIcon = `<span style="width: 16px; display: inline-block; text-align: center; font-size: 10px; color: #999; margin-right: 4px;">└</span>`;
+            } else {
+                toggleIcon = `<span style="width: 16px; display: inline-block; text-align: center; font-size: 10px; color: #999; margin-right: 4px;">•</span>`;
+            }
             
             html += `
-                <div style="padding: 8px; padding-left: ${indent + 8}px; background: ${bgColor}; border-bottom: 1px solid #f0f0f0; cursor: pointer;"
+                <div style="display: flex; align-items: center; padding: 8px 10px; padding-left: ${indent + 10}px; background: ${bgColor}; border-bottom: 1px solid #f0f0f0; cursor: pointer; color: #333;"
                      onclick="toggleCategorySelection('${cat.slug}')">
-                    <label style="display: flex; align-items: center; cursor: pointer; margin: 0;">
-                        <input type="checkbox" ${isSelected ? 'checked' : ''} 
-                               style="margin-right: 8px;"
-                               onclick="event.stopPropagation(); toggleCategorySelection('${cat.slug}')">
-                        <span style="flex: 1;">
-                            ${cat.level > 0 ? '└─ ' : ''}
-                            <strong>${cat.name}</strong>
-                            ${cat.parent_name ? `<span style="color: #666; font-size: 11px;"> (${cat.parent_name})</span>` : ''}
-                        </span>
-                    </label>
+                    ${toggleIcon}
+                    <input type="checkbox" ${isSelected ? 'checked' : ''} 
+                           style="width: auto !important; margin: 0 8px 0 0 !important; flex-shrink: 0; padding: 0 !important;"
+                           onclick="event.stopPropagation(); toggleCategorySelection('${cat.slug}')">
+                    <span style="flex: 1; color: #333;">
+                        <strong style="color: #222;">${cat.name}</strong>
+                        ${cat.parent_name ? `<span style="color: #666; font-size: 11px; margin-left: 5px;">(${cat.parent_name})</span>` : ''}
+                    </span>
                 </div>
             `;
         });
         
-        container.innerHTML = html;
+        container.innerHTML = html || '<p style="color: #666; text-align: center; padding: 20px;">Nenhuma categoria encontrada</p>';
     }
     
     function toggleCategorySelection(slug) {
@@ -2528,11 +2617,6 @@
             .catch(error => {
                 setStatus('categories-status', `Erro: ${error}`, 'error');
             });
-    }
-    
-    // Alias for button that uses loadCategories
-    function loadCategories() {
-        loadCategoriesGrid();
     }
     
     // Check if a row should be hidden based on collapsed parents

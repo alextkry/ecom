@@ -133,11 +133,45 @@ Renderer mostra badges coloridos (subcategorias em azul claro, raízes em verde 
 Ao copiar as categorias de um produto no outro e apertar para salvar o sistema não está salvando. Me parece que nem está enviando para o servidor. Nos do servidor diz: categories_json: None.
 
 ### 2.
-Talvez foss interessante guardar todos estes "metadados" json de categorias, atributos, variantes, grupos em cada entrada de produto do banco de dados, concorda ou discorda? Desta forma, ao invés de processar todo o JSON ao recebê-lo do frontend, basta verificar se houve alguma modificação com relação ao backend e apenas processá-lo caso estejam diferentas.
+Talvez fosse interessante guardar todos estes "metadados" json de categorias, atributos, variantes, grupos em cada entrada de produto do banco de dados, concorda ou discorda? Desta forma, ao invés de processar todo o JSON ao recebê-lo do frontend, basta verificar se houve alguma modificação com relação ao backend e apenas processá-lo caso estejam diferentas.
 
 # Specifications v1.0.8
 
-Seria bom que tivesse a tab para manipulação Categorias via tabela tal como há de Produtos, Variantes, Grupos, Atributos.
+Seria bom adicionar a tab para manipulação Categorias via tabela tal como há de Produtos, Variantes, Grupos, Atributos.
+Seria bom que na tabela de categorias, além das inforações das categorias houvesse uma indicação de quantos produtos há em cada categoria "(10 produtos), (50 produtos)". Também seria bom que ao clickar nesta indicação, ela se comportasse como um link me fosse mostrada uma tabela com todos os produtos daquela categoria selecionados e uma outra tabela com os produtos não selecionado e que eu selecionar os produtos de cada uma destas tabelas e mover de uma para a outra. Em outras palavras, selecionar novos produtos que ainda não estão selecionados e desselecionar produtos que já estão selecionados. Tal como uma caixa de seleção (uma tabela com os selecionados e outras com os não selecionados e se sai de uma entra na outra). Teria alguma outra sugestão mais eficiente?
+
+Também seria bom que a hierarquia das categorias ficasse organizada:
+> Categoria Pai 1
+> > Categoria Filho 1 (Pai 1 > Filho 1)
+> > Categoria Filho 2 (Pai 1 > Filho 2)
+> > Categoria Filho 3 (Pai 1 > Filho 3)
+> > > Categoria Neto 1 (Pai 1 > Filho 3 > Neto 1)
+> Categoria Pai 2
+> > Categoria Filho 1 (Pai 2 > Filho 1)
+> Categoria Pai 3
+> > Categoria Filho 1 (Pai 3 > Filho 1)
+> > Categoria Filho 2 (Pai 3 > Filho 2)
+Por padrão, seria bom mostrar todas as categorias, mas também seria bom que eu pudesse colapsar as categorias filho através da categoria pai. Teria como implementar isso?
+
+## Bugfixes v1.0.8
+### 1.
+Ao salvar a tabela com as categorias, perdeu-se toda a filiação, toda hierarquia, todas as categorias foram salvas como categoria (Raiz).
+
+
+# Sugestion
+
+Parece que todas as tabs de bulk_edit: Produtos, Variantes, Grupos, Atributos, Categorias estão sendo carregadas em uma mesma página. Imagino que o ideal fosse que cada uma destas fosse uma página diferente e que cada uma só carregasse da view aquilo que é essencia para o seu funcionamento. Concorda? 
+> Discordou de mim
+
+# Specifications v1.0.9
+
+Seria bom que pudesse colapsar e expandir as categorias no modal de categorias. 
+Bugfix: O texto referente às categorias também esta no canto direito da modal ao invés de perto dos checkboxes.
+
+
+# Specifications v1.0.10
+
+
 
 Também seria bom que ao selecionar um produto específico na tab de variantes, 
 

@@ -1266,20 +1266,43 @@ def categories_search(request):
         # Search in name and full path
         categories = categories.filter(name__icontains=query)
     
-    categories = categories.order_by('parent__name', 'display_order', 'name')[:100]
+    categories = list(categories)
     
-    data = []
+    # Build children map to determine has_children
+    children_map = {}
     for cat in categories:
-        data.append({
-            'id': cat.id,
-            'name': cat.name,
-            'slug': cat.slug,
-            'full_path': cat.full_path,
-            'parent_id': cat.parent_id,
-            'parent_name': cat.parent.name if cat.parent else None,
-            'parent_slug': cat.parent.slug if cat.parent else None,
-            'level': len(cat.get_ancestors()),
-        })
+        if cat.parent_id:
+            if cat.parent_id not in children_map:
+                children_map[cat.parent_id] = []
+            children_map[cat.parent_id].append(cat)
+    
+    # Build hierarchical order
+    cat_dict = {cat.id: cat for cat in categories}
+    roots = [c for c in categories if not c.parent_id]
+    roots.sort(key=lambda c: (c.display_order or 0, c.name))
+    for parent_id in children_map:
+        children_map[parent_id].sort(key=lambda c: (c.display_order or 0, c.name))
+    
+    def flatten(cats, level=0):
+        result = []
+        for cat in cats:
+            has_children = cat.id in children_map and len(children_map[cat.id]) > 0
+            result.append({
+                'id': cat.id,
+                'name': cat.name,
+                'slug': cat.slug,
+                'full_path': cat.full_path,
+                'parent_id': cat.parent_id,
+                'parent_name': cat.parent.name if cat.parent else None,
+                'parent_slug': cat.parent.slug if cat.parent else None,
+                'level': level,
+                'has_children': has_children,
+            })
+            if cat.id in children_map:
+                result.extend(flatten(children_map[cat.id], level + 1))
+        return result
+    
+    data = flatten(roots)
     
     return JsonResponse({'categories': data})
 
