@@ -1263,8 +1263,8 @@
             }
         });
         
-        // Update the products table
-        productsHot.setDataAtRowProp(jsonEditingRow, 'attributes_json', attributes.length > 0 ? attributes : null);
+        // Update the products table - use empty array [] to signal deletion, not null
+        productsHot.setDataAtRowProp(jsonEditingRow, 'attributes_json', attributes);
         
         closeJsonAttributesModal();
     }
@@ -1733,11 +1733,11 @@
                     sell_price: row.sell_price,
                     compare_at_price: row.compare_at_price,
                     stock_quantity: row.stock_quantity || 0,
-                    // JSON data
-                    attributes_json: row.attributes_json || null,
-                    variants_json: row.variants_json || null,
-                    groups_json: row.groups_json || null,
-                    categories_json: row.categories_json || null
+                    // JSON data - preserve empty arrays [] to signal deletion
+                    attributes_json: row.attributes_json !== undefined ? row.attributes_json : null,
+                    variants_json: row.variants_json !== undefined ? row.variants_json : null,
+                    groups_json: row.groups_json !== undefined ? row.groups_json : null,
+                    categories_json: row.categories_json !== undefined ? row.categories_json : null
                 });
             } else {
                 toUpdate.push({
@@ -1754,11 +1754,11 @@
                     sell_price: row.sell_price,
                     compare_at_price: row.compare_at_price,
                     stock_quantity: row.stock_quantity || 0,
-                    // JSON data
-                    attributes_json: row.attributes_json || null,
-                    variants_json: row.variants_json || null,
-                    groups_json: row.groups_json || null,
-                    categories_json: row.categories_json || null
+                    // JSON data - preserve empty arrays [] to signal deletion
+                    attributes_json: row.attributes_json !== undefined ? row.attributes_json : null,
+                    variants_json: row.variants_json !== undefined ? row.variants_json : null,
+                    groups_json: row.groups_json !== undefined ? row.groups_json : null,
+                    categories_json: row.categories_json !== undefined ? row.categories_json : null
                 });
             }
         });
@@ -1781,11 +1781,25 @@
             console.log('Save result:', result);
             if (result.status === 'ok') {
                 let msg = `✓ ${result.created} criado(s), ${result.updated} atualizado(s)`;
+                let statusType = 'success';
+                
                 if (result.errors && result.errors.length > 0) {
                     msg += ` (${result.errors.length} erro(s))`;
                     console.error('Save errors:', result.errors);
                 }
-                setStatus('products-status', msg, 'success');
+                
+                // Show warnings if any
+                if (result.warnings && result.warnings.length > 0) {
+                    statusType = 'warning';
+                    msg += ` ⚠️ ${result.warnings.length} aviso(s)`;
+                    console.warn('Save warnings:', result.warnings);
+                    
+                    // Show alert with warnings
+                    const warningText = result.warnings.join('\n\n');
+                    alert('⚠️ AVISOS:\n\n' + warningText);
+                }
+                
+                setStatus('products-status', msg, statusType);
                 newProductRows.clear();
                 loadProducts(); // Reload to get IDs
             } else {

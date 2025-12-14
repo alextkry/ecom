@@ -52,6 +52,7 @@ def bulk_products_data(request):
         'variants__variantattribute_set__attribute_option__attribute_type',
         'variant_groups__variants',
         'categories',
+        'attribute_options__attribute_type',  # For loading product-specific options
     ).all().order_by('name')
     
     data = []
@@ -99,15 +100,15 @@ def bulk_products_data(request):
             'categories_json': categories_json if categories_json else None,
         }
         
-        # Build attributes JSON - aggregate all attribute types and their values
+        # Build attributes JSON - get ALL attribute options defined for this product
+        # (not just the ones used by variants)
         attributes_dict = {}
-        for variant in product.variants.all():
-            for va in variant.variantattribute_set.all():
-                attr_name = va.attribute_option.attribute_type.name
-                attr_value = va.attribute_option.value
-                if attr_name not in attributes_dict:
-                    attributes_dict[attr_name] = set()
-                attributes_dict[attr_name].add(attr_value)
+        for option in product.attribute_options.select_related('attribute_type').all():
+            attr_name = option.attribute_type.name
+            attr_value = option.value
+            if attr_name not in attributes_dict:
+                attributes_dict[attr_name] = set()
+            attributes_dict[attr_name].add(attr_value)
         
         if attributes_dict:
             row['attributes_json'] = [
@@ -267,7 +268,12 @@ def _process_product_json_data(product, item):
     Process JSON data for attributes, variants, groups, and categories.
     Creates/updates related entities based on the JSON data.
     Only processes if there are changes compared to stored metadata.
+    
+    Returns:
+        list: List of warnings/errors encountered during processing
     """
+    warnings = []
+    
     attributes_json = item.get('attributes_json')
     variants_json = item.get('variants_json')
     groups_json = item.get('groups_json')
@@ -305,9 +311,9 @@ def _process_product_json_data(product, item):
     # Use attributes_json from item or from stored metadata
     effective_attributes_json = attributes_json if attributes_json else product.metadata_attributes
     
-    if attributes_changed and attributes_json:
+    if attributes_changed and attributes_json is not None:
         # First, remove old product-specific AttributeOptions that are no longer in the JSON
-        # Collect current attribute values from JSON
+        # Collect current attribute values from JSON (empty dict if attributes_json is [])
         current_attr_values = {}  # {attr_slug: set(values)}
         for attr_data in attributes_json:
             attr_name = attr_data.get('atributo', '').strip()
@@ -322,7 +328,19 @@ def _process_product_json_data(product, item):
             value_lower = option.value.lower()
             if attr_slug not in current_attr_values or value_lower not in current_attr_values[attr_slug]:
                 # Check if this option is used by any variant
-                if not option.variantattribute_set.exists():
+                variant_attrs = option.variantattribute_set.select_related('variant')
+                if variant_attrs.exists():
+                    # Option is in use - collect SKUs for warning message
+                    skus_using = [va.variant.sku for va in variant_attrs[:5]]
+                    more_count = variant_attrs.count() - 5
+                    sku_list = ', '.join(skus_using)
+                    if more_count > 0:
+                        sku_list += f' (+{more_count} mais)'
+                    warnings.append(
+                        f"Opção '{option.attribute_type.name}: {option.value}' não foi removida porque está em uso pelas variantes: {sku_list}. "
+                        f"Atualize primeiro as variantes para remover esta opção."
+                    )
+                else:
                     option.delete()
         
         for attr_data in attributes_json:
@@ -428,7 +446,7 @@ def _process_product_json_data(product, item):
                             )
     
     # Process variants - create/update Variants with their attributes
-    if variants_changed and variants_json:
+    if variants_changed and variants_json is not None:
         existing_skus = set(product.variants.values_list('sku', flat=True))
         new_skus = set()
         
@@ -482,8 +500,11 @@ def _process_product_json_data(product, item):
                         )
         
         # Delete variants that are no longer in the JSON
-        # Only if variants_json was provided and has data
-        if new_skus:
+        # If new_skus is empty and variants_json was explicitly set to [], delete all variants
+        if len(variants_json) == 0 and existing_skus:
+            # User explicitly removed all variants
+            Variant.objects.filter(product=product).delete()
+        elif new_skus:
             skus_to_delete = existing_skus - new_skus
             if skus_to_delete:
                 Variant.objects.filter(product=product, sku__in=skus_to_delete).delete()
@@ -491,7 +512,7 @@ def _process_product_json_data(product, item):
         product.metadata_variants = variants_json
     
     # Process groups - create/update VariantGroups
-    if groups_changed and groups_json:
+    if groups_changed and groups_json is not None:
         existing_group_slugs = set(product.variant_groups.values_list('slug', flat=True))
         new_group_slugs = set()
         
@@ -538,7 +559,10 @@ def _process_product_json_data(product, item):
                         pass
         
         # Delete groups that are no longer in the JSON
-        if new_group_slugs:
+        # If groups_json is empty [], delete all groups
+        if len(groups_json) == 0 and existing_group_slugs:
+            VariantGroup.objects.filter(product=product).delete()
+        elif new_group_slugs:
             slugs_to_delete = existing_group_slugs - new_group_slugs
             if slugs_to_delete:
                 VariantGroup.objects.filter(product=product, slug__in=slugs_to_delete).delete()
@@ -552,6 +576,8 @@ def _process_product_json_data(product, item):
             'metadata_variants', 'metadata_groups'
         ])
         print(f"  - Saved metadata for product {product.id}")
+    
+    return warnings
 
 
 @staff_member_required
@@ -571,6 +597,7 @@ def bulk_products_save(request):
     created_count = 0
     updated_count = 0
     errors = []
+    warnings = []
     
     with transaction.atomic():
         # Create new products
@@ -594,7 +621,9 @@ def bulk_products_save(request):
                 product = Product.objects.get(slug=slug)
                 
                 # Process JSON data if provided
-                _process_product_json_data(product, item)
+                product_warnings = _process_product_json_data(product, item)
+                if product_warnings:
+                    warnings.extend(product_warnings)
                 
                 # If SKU is provided for new product (and no variants_json), create inline variant
                 sku = item.get('sku', '').strip()
@@ -626,7 +655,9 @@ def bulk_products_save(request):
                 product.save()
                 
                 # Process JSON data if provided
-                _process_product_json_data(product, item)
+                product_warnings = _process_product_json_data(product, item)
+                if product_warnings:
+                    warnings.extend(product_warnings)
                 
                 # Handle inline variant data for products without multiple variants
                 # Skip if variants_json was provided (those take precedence)
@@ -673,6 +704,7 @@ def bulk_products_save(request):
         'created': created_count,
         'updated': updated_count,
         'errors': errors,
+        'warnings': warnings,
     })
 
 
