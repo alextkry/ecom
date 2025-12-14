@@ -19,8 +19,11 @@ urlpatterns = [
     path('bulk-edit/attr-options/data/', views.bulk_attr_options_data, name='bulk_attr_options_data'),
     path('bulk-edit/attr-options/save/', views.bulk_attr_options_save, name='bulk_attr_options_save'),
     
-    # Create Attribute Type
+    # Attribute Types CRUD
+    path('bulk-edit/attr-types/data/', views.bulk_attr_types_data, name='bulk_attr_types_data'),
+    path('bulk-edit/attr-types/save/', views.bulk_attr_types_save, name='bulk_attr_types_save'),
     path('bulk-edit/attr-types/create/', views.bulk_create_attr_type, name='bulk_create_attr_type'),
+    path('bulk-edit/attr-types/products/', views.bulk_attr_type_products, name='bulk_attr_type_products'),
     
     # Groups CRUD
     path('bulk-edit/groups/data/', views.bulk_groups_data, name='bulk_groups_data'),

@@ -184,6 +184,15 @@
         background-color: #d4edda !important;
     }
     
+    /* Option row (child of attribute type) */
+    .option-row {
+        background-color: #f8f9fa !important;
+    }
+    .option-row td {
+        color: #666 !important;
+        font-size: 12px !important;
+    }
+    
     /* Image upload area */
     .image-upload-area {
         border: 2px dashed #ccc;
@@ -416,26 +425,18 @@
     <!-- TAB: ATRIBUTOS -->
     <div id="tab-attributes" class="tab-content">
         <div class="help-text">
-            <strong>Atributos:</strong> Configure os tipos de atributos (Cor, Comprimento, Número) e suas opções.
+            <strong>Tipos de Atributos:</strong> Gerencie os tipos de atributos disponíveis (Cor, Tamanho, Comprimento, etc).
+            <br>As opções de cada atributo são criadas automaticamente ao salvar produtos na aba Produtos (via JSON de atributos).
         </div>
         
         <div class="controls">
-            <label for="attr-type-select">Tipo de Atributo:</label>
-            <select id="attr-type-select" onchange="loadAttributeOptions()">
-                <option value="">-- Selecione --</option>
-                {% for attr in attribute_types %}
-                <option value="{{ attr.id }}">{{ attr.name }}</option>
-                {% endfor %}
-            </select>
-            
-            <button type="button" onclick="openNewAttrTypeModal()">➕ Novo Tipo</button>
-            <button type="button" onclick="addAttributeOptionRow()">➕ Nova Opção</button>
-            <button type="button" class="success" onclick="saveAttributeOptions()">💾 Salvar Opções</button>
+            <button type="button" onclick="openNewAttrTypeModal()">➕ Novo Tipo de Atributo</button>
+            <button type="button" class="success" onclick="saveAttributeTypes()">💾 Salvar Tipos</button>
         </div>
         
         <div id="attributes-grid" class="grid-container"></div>
         <div class="status-bar" id="attributes-status">
-            <span class="info">Selecione um tipo de atributo para gerenciar suas opções.</span>
+            <span class="info">Gerencie os tipos de atributos.</span>
         </div>
     </div>
     
@@ -458,6 +459,46 @@
         <div id="categories-grid" class="grid-container"></div>
         <div class="status-bar" id="categories-status">
             <span class="info">Carregando categorias...</span>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Attribute Type Products (Grid) -->
+<div id="attr-type-products-modal" class="modal">
+    <div class="modal-content" style="max-width: 95%; width: 1200px; max-height: 85vh; display: flex; flex-direction: column;">
+        <h3>🏷️ Produtos com atributo: <span id="attr-type-products-name"></span></h3>
+        
+        <div id="attr-type-products-grid" style="flex: 1; min-height: 300px; overflow: auto;"></div>
+        
+        <div class="status-bar" id="attr-type-products-status" style="margin-top: 10px;">
+            <span class="info">Carregando...</span>
+        </div>
+        
+        <div class="modal-buttons" style="margin-top: 15px;">
+            <button type="button" class="secondary" onclick="closeAttrTypeProductsModal()">Fechar</button>
+            <button type="button" onclick="goToProductsTab()">↗️ Abrir na Tab Produtos</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Attribute Options Editor (Grid) -->
+<div id="attr-options-modal" class="modal">
+    <div class="modal-content" style="max-width: 900px; max-height: 85vh; display: flex; flex-direction: column;">
+        <h3>⚙️ Opções do atributo: <span id="attr-options-type-name"></span></h3>
+        
+        <div class="help-text" style="margin-bottom: 10px;">
+            Edite as opções deste tipo de atributo. O <strong>Grupo de Filtro</strong> serve para agrupar valores similares nos filtros do site.
+        </div>
+        
+        <div id="attr-options-grid" style="flex: 1; min-height: 250px; overflow: auto;"></div>
+        
+        <div class="status-bar" id="attr-options-status" style="margin-top: 10px;">
+            <span class="info">Carregando...</span>
+        </div>
+        
+        <div class="modal-buttons" style="margin-top: 15px;">
+            <button type="button" class="secondary" onclick="closeAttrOptionsModal()">Cancelar</button>
+            <button type="button" class="success" onclick="saveAttrOptions()">💾 Salvar Opções</button>
         </div>
     </div>
 </div>
@@ -724,6 +765,9 @@
         }
         if (tabName === 'categories' && !categoriesHot) {
             loadCategoriesGrid();
+        }
+        if (tabName === 'attributes' && !attributesHot) {
+            loadAttributeTypes();
         }
     }
     
@@ -2044,31 +2088,29 @@
     }
     
     // =============================================================================
-    // ATTRIBUTES TAB
+    // ATTRIBUTES TAB - Manage Attribute Types
     // =============================================================================
     
-    function loadAttributeOptions() {
-        const attrTypeId = document.getElementById('attr-type-select').value;
-        if (!attrTypeId) {
-            setStatus('attributes-status', 'Selecione um tipo de atributo.', 'info');
-            return;
-        }
+    let attrTypesData = [];
+    let attrProductsHot = null;  // Grid for products modal
+    let attrOptionsHot = null;   // Grid for options modal
+
+    function loadAttributeTypes() {
+        setStatus('attributes-status', 'Carregando tipos de atributos...', 'info');
         
-        currentAttrTypeId = attrTypeId;
-        setStatus('attributes-status', 'Carregando opções...', 'info');
-        
-        fetch(`{% url "catalog:bulk_attr_options_data" %}?attribute_type_id=${attrTypeId}`)
+        fetch('{% url "catalog:bulk_attr_types_data" %}')
             .then(response => response.json())
             .then(data => {
-                initAttributesGrid(data);
-                setStatus('attributes-status', `${data.data.length} opções carregadas.`, 'success');
+                attrTypesData = data.data;
+                initAttributeTypesGrid(data);
+                setStatus('attributes-status', `${data.data.length} tipos de atributos.`, 'success');
             })
             .catch(error => {
                 setStatus('attributes-status', `Erro: ${error}`, 'error');
             });
     }
     
-    function initAttributesGrid(jsonData) {
+    function initAttributeTypesGrid(jsonData) {
         const container = document.getElementById('attributes-grid');
         
         if (attributesHot) {
@@ -2077,30 +2119,47 @@
         
         newAttrOptionRows.clear();
         
-        // Custom renderer for color preview
-        function colorRenderer(instance, td, row, col, prop, value, cellProperties) {
-            Handsontable.renderers.TextRenderer.apply(this, arguments);
-            if (value && value.match(/^#[0-9A-Fa-f]{6}$/)) {
-                td.innerHTML = `
-                    <div style="display:flex;align-items:center;gap:8px;">
-                        <span style="display:inline-block;width:20px;height:20px;background:${value};border:1px solid #ccc;border-radius:3px;"></span>
-                        <span>${value}</span>
-                    </div>
-                `;
+        // Renderer for clickable product count
+        function productCountRenderer(instance, td, row, col, prop, value, cellProperties) {
+            const rowData = instance.getSourceDataAtRow(row);
+            if (rowData && rowData.id) {
+                const count = value || 0;
+                if (count > 0) {
+                    td.innerHTML = `<a href="#" onclick="showAttrTypeProducts(${rowData.id}, '${rowData.name}'); return false;" style="color:#0066cc; text-decoration:underline;">${count} produtos</a>`;
+                } else {
+                    td.innerHTML = '<span style="color:#999;">0 produtos</span>';
+                }
             } else {
-                td.textContent = value || '';
+                td.textContent = '';
+            }
+        }
+        
+        // Renderer for clickable options count
+        function optionsCountRenderer(instance, td, row, col, prop, value, cellProperties) {
+            const rowData = instance.getSourceDataAtRow(row);
+            if (rowData && rowData.id) {
+                const count = rowData.options ? rowData.options.length : 0;
+                if (count > 0) {
+                    td.innerHTML = `<a href="#" onclick="showAttrTypeOptions(${rowData.id}, '${rowData.name}'); return false;" style="color:#0066cc; text-decoration:underline;">${count} opções</a>`;
+                } else {
+                    td.innerHTML = '<span style="color:#999;">0 opções</span>';
+                }
+            } else {
+                td.textContent = '';
             }
         }
         
         attributesHot = new Handsontable(container, {
             data: jsonData.data,
-            colHeaders: ['ID', 'Valor', 'Valor de Exibição', 'Cor Hex', 'Ordem'],
+            colHeaders: ['ID', 'Nome', 'Slug', 'Tipo de Dado', 'Ordem', 'Produtos', 'Opções'],
             columns: [
                 {data: 'id', readOnly: true, width: 50},
-                {data: 'value', width: 150},
-                {data: 'display_value', width: 150},
-                {data: 'color_hex', width: 130, renderer: colorRenderer},
+                {data: 'name', width: 150},
+                {data: 'slug', width: 120},
+                {data: 'datatype', type: 'dropdown', source: ['text', 'number', 'decimal', 'color'], width: 100},
                 {data: 'display_order', type: 'numeric', width: 80},
+                {data: 'product_count', renderer: productCountRenderer, readOnly: true, width: 100},
+                {data: 'options_count', renderer: optionsCountRenderer, readOnly: true, width: 100},
             ],
             rowHeaders: true,
             contextMenu: true,
@@ -2116,6 +2175,7 @@
                 for (let i = 0; i < amount; i++) {
                     newAttrOptionRows.add(index + i);
                     this.setDataAtRowProp(index + i, 'display_order', 0);
+                    this.setDataAtRowProp(index + i, 'datatype', 'text');
                 }
                 this.render();
             },
@@ -2130,43 +2190,215 @@
         });
     }
     
-    function addAttributeOptionRow() {
-        if (!attributesHot) {
-            setStatus('attributes-status', 'Selecione um tipo de atributo primeiro.', 'warning');
-            return;
-        }
-        attributesHot.alter('insert_row_below', attributesHot.countRows());
+    // --- Products Modal (Handsontable grid) ---
+    
+    function showAttrTypeProducts(attrTypeId, attrTypeName) {
+        currentAttrTypeId = attrTypeId;
+        document.getElementById('attr-type-products-name').textContent = attrTypeName;
+        document.getElementById('attr-type-products-modal').style.display = 'block';
+        setStatus('attr-type-products-status', 'Carregando produtos...', 'info');
+        
+        fetch(`{% url "catalog:bulk_attr_type_products" %}?attribute_type_id=${attrTypeId}`)
+            .then(response => response.json())
+            .then(data => {
+                initAttrProductsGrid(data.products);
+                setStatus('attr-type-products-status', `${data.products.length} produtos encontrados.`, 'success');
+            })
+            .catch(error => {
+                setStatus('attr-type-products-status', `Erro: ${error}`, 'error');
+            });
     }
     
-    function saveAttributeOptions() {
-        if (!attributesHot || !currentAttrTypeId) return;
+    function initAttrProductsGrid(products) {
+        const container = document.getElementById('attr-type-products-grid');
+        
+        if (attrProductsHot) {
+            attrProductsHot.destroy();
+        }
+        
+        // Renderer for options badges
+        function optionsBadgesRenderer(instance, td, row, col, prop, value, cellProperties) {
+            if (value && Array.isArray(value)) {
+                td.innerHTML = value.map(o => 
+                    `<span style="background:#e3f2fd; padding:2px 8px; border-radius:10px; margin:2px; display:inline-block; font-size:12px;">${o}</span>`
+                ).join('');
+            } else {
+                td.textContent = '';
+            }
+        }
+        
+        attrProductsHot = new Handsontable(container, {
+            data: products,
+            colHeaders: ['ID', 'Produto', 'Opções deste Atributo', 'Variantes'],
+            columns: [
+                {data: 'id', readOnly: true, width: 50},
+                {data: 'name', readOnly: true, width: 200},
+                {data: 'options', renderer: optionsBadgesRenderer, readOnly: true, width: 300},
+                {data: 'variant_count', readOnly: true, width: 80},
+            ],
+            rowHeaders: true,
+            readOnly: true,
+            manualColumnResize: true,
+            stretchH: 'all',
+            height: 350,
+            licenseKey: 'non-commercial-and-evaluation',
+        });
+    }
+    
+    function closeAttrTypeProductsModal() {
+        document.getElementById('attr-type-products-modal').style.display = 'none';
+        if (attrProductsHot) {
+            attrProductsHot.destroy();
+            attrProductsHot = null;
+        }
+    }
+    
+    function goToProductsTab() {
+        // Close modal and switch to products tab
+        closeAttrTypeProductsModal();
+        // TODO: Could add filtering by attribute type in products tab
+        document.querySelector('.tab[onclick*="products"]').click();
+    }
+    
+    // --- Options Modal (Handsontable grid, editable) ---
+    
+    function showAttrTypeOptions(attrTypeId, attrTypeName) {
+        currentAttrTypeId = attrTypeId;
+        document.getElementById('attr-options-type-name').textContent = attrTypeName;
+        document.getElementById('attr-options-modal').style.display = 'block';
+        setStatus('attr-options-status', 'Carregando opções...', 'info');
+        
+        // Find options from already loaded data
+        const attrType = attrTypesData.find(at => at.id === attrTypeId);
+        if (attrType && attrType.options) {
+            initAttrOptionsGrid(attrType.options);
+            setStatus('attr-options-status', `${attrType.options.length} opções.`, 'success');
+        } else {
+            setStatus('attr-options-status', 'Nenhuma opção encontrada.', 'info');
+            initAttrOptionsGrid([]);
+        }
+    }
+    
+    function initAttrOptionsGrid(options) {
+        const container = document.getElementById('attr-options-grid');
+        
+        if (attrOptionsHot) {
+            attrOptionsHot.destroy();
+        }
+        
+        // Color preview renderer
+        function colorRenderer(instance, td, row, col, prop, value, cellProperties) {
+            Handsontable.renderers.TextRenderer.apply(this, arguments);
+            if (value && value.match(/^#[0-9A-Fa-f]{6}$/)) {
+                td.innerHTML = `
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="display:inline-block;width:18px;height:18px;background:${value};border:1px solid #ccc;border-radius:3px;"></span>
+                        <span>${value}</span>
+                    </div>
+                `;
+            }
+        }
+        
+        attrOptionsHot = new Handsontable(container, {
+            data: options,
+            colHeaders: ['ID', 'Valor', 'Valor de Exibição', 'Grupo de Filtro', 'Cor Hex', 'Produto'],
+            columns: [
+                {data: 'id', readOnly: true, width: 50},
+                {data: 'value', readOnly: true, width: 120},
+                {data: 'display_value', width: 120},
+                {data: 'filter_group', width: 120},
+                {data: 'color_hex', renderer: colorRenderer, width: 100},
+                {data: 'product_name', readOnly: true, width: 150},
+            ],
+            rowHeaders: true,
+            contextMenu: true,
+            manualColumnResize: true,
+            stretchH: 'all',
+            height: 300,
+            copyPaste: true,
+            licenseKey: 'non-commercial-and-evaluation',
+        });
+    }
+    
+    function closeAttrOptionsModal() {
+        document.getElementById('attr-options-modal').style.display = 'none';
+        if (attrOptionsHot) {
+            attrOptionsHot.destroy();
+            attrOptionsHot = null;
+        }
+    }
+    
+    function saveAttrOptions() {
+        if (!attrOptionsHot) return;
+        
+        const allData = attrOptionsHot.getSourceData();
+        const toUpdate = [];
+        
+        allData.forEach(row => {
+            if (!row.id) return;
+            toUpdate.push({
+                id: row.id,
+                display_value: row.display_value || '',
+                filter_group: row.filter_group || '',
+                color_hex: row.color_hex || '',
+            });
+        });
+        
+        setStatus('attr-options-status', 'Salvando...', 'info');
+        
+        fetch('{% url "catalog:bulk_attr_options_save" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({update: toUpdate})
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'ok') {
+                setStatus('attr-options-status', `✓ ${result.updated} opção(ões) atualizada(s).`, 'success');
+                // Reload main grid to refresh options count
+                loadAttributeTypes();
+            } else {
+                setStatus('attr-options-status', `Erro: ${result.message}`, 'error');
+            }
+        })
+        .catch(error => {
+            setStatus('attr-options-status', `Erro: ${error}`, 'error');
+        });
+    }
+    
+    // --- Save Attribute Types ---
+    
+    function saveAttributeTypes() {
+        if (!attributesHot) return;
         
         const allData = attributesHot.getSourceData();
         const toCreate = [];
         const toUpdate = [];
         
         allData.forEach((row, index) => {
-            if (!row.value) return;
+            if (!row.name) return;
             
-            const optionData = {
-                value: row.value,
-                display_value: row.display_value || '',
-                color_hex: row.color_hex || '',
+            const typeData = {
+                name: row.name,
+                slug: row.slug || '',
+                datatype: row.datatype || 'text',
                 display_order: row.display_order || 0
             };
             
             if (newAttrOptionRows.has(index) || !row.id) {
-                optionData.attribute_type_id = currentAttrTypeId;
-                toCreate.push(optionData);
+                toCreate.push(typeData);
             } else {
-                optionData.id = row.id;
-                toUpdate.push(optionData);
+                typeData.id = row.id;
+                toUpdate.push(typeData);
             }
         });
         
         setStatus('attributes-status', 'Salvando...', 'info');
         
-        fetch('{% url "catalog:bulk_attr_options_save" %}', {
+        fetch('{% url "catalog:bulk_attr_types_save" %}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -2178,9 +2410,9 @@
         .then(result => {
             if (result.status === 'ok') {
                 setStatus('attributes-status', 
-                    `✓ ${result.created} criada(s), ${result.updated} atualizada(s)`, 'success');
+                    `✓ ${result.created || 0} criado(s), ${result.updated || 0} atualizado(s)`, 'success');
                 newAttrOptionRows.clear();
-                loadAttributeOptions();
+                loadAttributeTypes();
             } else {
                 setStatus('attributes-status', `Erro: ${result.message}`, 'error');
             }
@@ -2577,12 +2809,11 @@
         .then(result => {
             closeAttrTypeModal();
             if (result.status === 'ok') {
-                // Add to dropdown and select
-                const select = document.getElementById('attr-type-select');
-                const option = new Option(name, result.id);
-                select.add(option);
-                select.value = result.id;
                 setStatus('attributes-status', `Tipo "${name}" criado com sucesso!`, 'success');
+                // Clear form and reload grid
+                document.getElementById('new-attr-type-name').value = '';
+                document.getElementById('new-attr-type-slug').value = '';
+                loadAttributeTypes();
             } else {
                 setStatus('attributes-status', `Erro: ${result.message}`, 'error');
             }

@@ -45,11 +45,12 @@ class AttributeType(models.Model):
 
 class AttributeOption(models.Model):
     """
-    Possible values for each attribute type.
+    Possible values for each attribute type, always linked to a product.
+    Each product defines its own set of attribute options.
+    
     Examples: 
-        - AttributeType="Color" -> Options: "branco", "preto", "azul"
-        - AttributeType="Length" -> Options: "230m", "350m", "480m"
-        - AttributeType="Number" -> Options: "5", "8", "10", "20"
+        - Product "Camiseta" + AttributeType="Cor" -> Options: "Azul", "Branco"
+        - Product "Extensão" + AttributeType="Cor" -> Options: "Preto", "Loiro"
     """
     hex_color_validator = RegexValidator(
         regex=r'^#[0-9A-Fa-f]{6}$',
@@ -62,6 +63,12 @@ class AttributeOption(models.Model):
         related_name='options',
         verbose_name='Tipo de Atributo'
     )
+    product = models.ForeignKey(
+        'catalog.Product',
+        on_delete=models.CASCADE,
+        related_name='attribute_options',
+        verbose_name='Produto'
+    )
     value = models.CharField(
         max_length=100,
         verbose_name='Valor'
@@ -71,6 +78,12 @@ class AttributeOption(models.Model):
         blank=True,
         verbose_name='Valor de exibição',
         help_text='Nome alternativo para exibição (opcional)'
+    )
+    filter_group = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name='Grupo de Filtro',
+        help_text='Para agrupar valores similares em filtros globais (ex: "vermelho" agrupa "Vermelho Ferrari", "Vermelho Bordô")'
     )
     color_hex = models.CharField(
         max_length=7,
@@ -86,12 +99,12 @@ class AttributeOption(models.Model):
 
     class Meta:
         ordering = ['display_order', 'value']
-        unique_together = ['attribute_type', 'value']
+        unique_together = ['attribute_type', 'product', 'value']
         verbose_name = 'Opção de Atributo'
         verbose_name_plural = 'Opções de Atributos'
 
     def __str__(self):
-        return f"{self.attribute_type.name}: {self.display_value or self.value}"
+        return f"{self.attribute_type.name}: {self.display_value or self.value} [{self.product.name}]"
 
     def get_display_value(self):
         return self.display_value or self.value

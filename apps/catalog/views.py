@@ -245,8 +245,17 @@ def _process_categories_json(product, categories_json):
 
 
 def _json_changed(old_json, new_json):
-    """Compare two JSON values to detect changes."""
+    """Compare two JSON values to detect changes.
+    
+    Returns True if there's a meaningful change.
+    Returns False if new_json is None (meaning "not provided, keep existing").
+    """
     import json
+    
+    # If new_json is None, it means "don't change" (field was not modified)
+    if new_json is None:
+        return False
+    
     # Normalize to JSON strings for comparison
     old_str = json.dumps(old_json, sort_keys=True) if old_json else None
     new_str = json.dumps(new_json, sort_keys=True) if new_json else None
@@ -290,10 +299,32 @@ def _process_product_json_data(product, item):
         _process_categories_json(product, categories_json)
         product.metadata_categories = categories_json
     
-    # Process attributes - create AttributeTypes and AttributeOptions
+    # Process attributes - create AttributeTypes and AttributeOptions (product-specific)
     attr_type_map = {}  # {attr_name: {value: AttributeOption}}
     
+    # Use attributes_json from item or from stored metadata
+    effective_attributes_json = attributes_json if attributes_json else product.metadata_attributes
+    
     if attributes_changed and attributes_json:
+        # First, remove old product-specific AttributeOptions that are no longer in the JSON
+        # Collect current attribute values from JSON
+        current_attr_values = {}  # {attr_slug: set(values)}
+        for attr_data in attributes_json:
+            attr_name = attr_data.get('atributo', '').strip()
+            valores = attr_data.get('valores', [])
+            if attr_name:
+                attr_slug = slugify(attr_name)
+                current_attr_values[attr_slug] = set(str(v).strip().lower() for v in valores if str(v).strip())
+        
+        # Remove product-specific options no longer in the JSON
+        for option in product.attribute_options.all():
+            attr_slug = option.attribute_type.slug
+            value_lower = option.value.lower()
+            if attr_slug not in current_attr_values or value_lower not in current_attr_values[attr_slug]:
+                # Check if this option is used by any variant
+                if not option.variantattribute_set.exists():
+                    option.delete()
+        
         for attr_data in attributes_json:
             attr_name = attr_data.get('atributo', '').strip()
             valores = attr_data.get('valores', [])
@@ -310,18 +341,91 @@ def _process_product_json_data(product, item):
             
             attr_type_map[attr_name.lower()] = {}
             
-            # Get or create AttributeOptions
+            # Get or create AttributeOptions - PRODUCT SPECIFIC
             for valor in valores:
                 valor = str(valor).strip()
                 if valor:
-                    option, _ = AttributeOption.objects.get_or_create(
+                    # First try to find product-specific option
+                    option = AttributeOption.objects.filter(
                         attribute_type=attr_type,
-                        value=valor,
-                        defaults={'display_value': valor}
-                    )
+                        product=product,
+                        value__iexact=valor
+                    ).first()
+                    
+                    if not option:
+                        # Create product-specific option
+                        option, _ = AttributeOption.objects.get_or_create(
+                            attribute_type=attr_type,
+                            product=product,
+                            value=valor,
+                            defaults={
+                                'display_value': valor,
+                                'filter_group': valor.lower()  # Default filter group
+                            }
+                        )
+                    
                     attr_type_map[attr_name.lower()][valor.lower()] = option
         
         product.metadata_attributes = attributes_json
+    
+    # If variants changed but attributes didn't, still need to build attr_type_map from existing data
+    elif variants_changed and effective_attributes_json:
+        for attr_data in effective_attributes_json:
+            attr_name = attr_data.get('atributo', '').strip()
+            valores = attr_data.get('valores', [])
+            
+            if not attr_name or not valores:
+                continue
+            
+            attr_slug = slugify(attr_name)
+            attr_type = AttributeType.objects.filter(slug=attr_slug).first()
+            
+            if not attr_type:
+                continue
+            
+            attr_type_map[attr_name.lower()] = {}
+            
+            for valor in valores:
+                valor = str(valor).strip()
+                if valor:
+                    # Look for existing product-specific option
+                    option = AttributeOption.objects.filter(
+                        attribute_type=attr_type,
+                        product=product,
+                        value__iexact=valor
+                    ).first()
+                    
+                    if option:
+                        attr_type_map[attr_name.lower()][valor.lower()] = option
+    
+    # If attributes changed but variants didn't, we need to re-associate attributes to existing variants
+    if attributes_changed and not variants_changed and attr_type_map:
+        effective_variants_json = variants_json if variants_json else product.metadata_variants
+        if effective_variants_json:
+            for var_data in effective_variants_json:
+                sku = var_data.get('sku', '').strip()
+                if not sku:
+                    continue
+                
+                try:
+                    variant = Variant.objects.get(product=product, sku=sku)
+                except Variant.DoesNotExist:
+                    continue
+                
+                # Clear existing attributes and re-associate
+                VariantAttribute.objects.filter(variant=variant).delete()
+                
+                for attr_name, options_map in attr_type_map.items():
+                    attr_slug = attr_name.replace(' ', '_')
+                    attr_value = var_data.get(attr_slug, '')
+                    
+                    if attr_value:
+                        option = options_map.get(str(attr_value).lower())
+                        if option:
+                            VariantAttribute.objects.create(
+                                variant=variant,
+                                attribute_option=option
+                            )
     
     # Process variants - create/update Variants with their attributes
     if variants_changed and variants_json:
@@ -771,14 +875,21 @@ def bulk_variants_save(request):
 @staff_member_required
 @require_http_methods(["GET"])
 def bulk_attr_options_data(request):
-    """API endpoint to get attribute options."""
-    attr_type_id = request.GET.get('attribute_type_id')
+    """API endpoint to get attribute options for a specific product.
     
-    if not attr_type_id:
+    Query params:
+    - attribute_type_id: filter by attribute type (required)
+    - product_id: filter by product (required)
+    """
+    attr_type_id = request.GET.get('attribute_type_id')
+    product_id = request.GET.get('product_id')
+    
+    if not attr_type_id or not product_id:
         return JsonResponse({'data': []})
     
     options = AttributeOption.objects.filter(
-        attribute_type_id=attr_type_id
+        attribute_type_id=attr_type_id,
+        product_id=product_id
     ).order_by('display_order', 'value')
     
     data = []
@@ -789,6 +900,7 @@ def bulk_attr_options_data(request):
             'display_value': opt.display_value,
             'color_hex': opt.color_hex,
             'display_order': opt.display_order,
+            'filter_group': opt.filter_group,
         })
     
     return JsonResponse({'data': data})
@@ -798,7 +910,126 @@ def bulk_attr_options_data(request):
 @require_http_methods(["POST"])
 @csrf_protect
 def bulk_attr_options_save(request):
-    """API endpoint to create/update attribute options."""
+    """API endpoint to update attribute options filter_group for a product.
+    
+    Note: Options are created automatically when saving products.
+    This endpoint only allows updating filter_group, display_value, color_hex.
+    """
+    try:
+        payload = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+    
+    to_update = payload.get('update', [])
+    updated_count = 0
+    errors = []
+    
+    with transaction.atomic():
+        for item in to_update:
+            try:
+                opt = AttributeOption.objects.get(pk=item['id'])
+                if 'display_value' in item:
+                    opt.display_value = item['display_value']
+                if 'color_hex' in item:
+                    opt.color_hex = item['color_hex']
+                if 'filter_group' in item:
+                    opt.filter_group = item['filter_group']
+                if 'display_order' in item:
+                    opt.display_order = item['display_order']
+                opt.save()
+                updated_count += 1
+            except AttributeOption.DoesNotExist:
+                errors.append(f"Opção ID {item.get('id')} não encontrada")
+            except Exception as e:
+                errors.append(f"Erro ao atualizar ID {item.get('id')}: {str(e)}")
+    
+    return JsonResponse({
+        'status': 'ok',
+        'updated': updated_count,
+        'errors': errors,
+    })
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def bulk_attr_types_data(request):
+    """API endpoint to get all attribute types with their options."""
+    attr_types = AttributeType.objects.all().order_by('display_order', 'name')
+    
+    data = []
+    for at in attr_types:
+        # Count products using this attribute type
+        product_count = Product.objects.filter(
+            attribute_options__attribute_type=at
+        ).distinct().count()
+        
+        # Get all options for this type, grouped by value
+        options = []
+        for opt in AttributeOption.objects.filter(attribute_type=at).select_related('product').order_by('value', 'product__name'):
+            options.append({
+                'id': opt.id,
+                'value': opt.value,
+                'display_value': opt.display_value,
+                'filter_group': opt.filter_group,
+                'display_order': opt.display_order,
+                'product_id': opt.product_id,
+                'product_name': opt.product.name if opt.product else None,
+            })
+        
+        data.append({
+            'id': at.id,
+            'name': at.name,
+            'slug': at.slug,
+            'datatype': at.datatype,
+            'display_order': at.display_order,
+            'product_count': product_count,
+            'options': options,
+        })
+    
+    return JsonResponse({'data': data})
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def bulk_attr_type_products(request):
+    """API endpoint to get products that use a specific attribute type."""
+    attr_type_id = request.GET.get('attribute_type_id')
+    
+    if not attr_type_id:
+        return JsonResponse({'products': []})
+    
+    try:
+        attr_type = AttributeType.objects.get(pk=attr_type_id)
+    except AttributeType.DoesNotExist:
+        return JsonResponse({'products': []})
+    
+    # Get products with this attribute type
+    products = Product.objects.filter(
+        attribute_options__attribute_type=attr_type
+    ).distinct().prefetch_related('attribute_options', 'variants')
+    
+    result = []
+    for product in products:
+        # Get options of this type for this product
+        options = product.attribute_options.filter(
+            attribute_type=attr_type
+        ).values_list('value', flat=True)
+        
+        result.append({
+            'id': product.id,
+            'name': product.name,
+            'options': list(options),
+            'variant_count': product.variants.count(),
+        })
+    
+    return JsonResponse({'products': result})
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+@csrf_protect
+def bulk_attr_types_save(request):
+    """API endpoint to create/update attribute types."""
     try:
         payload = json.loads(request.body)
     except json.JSONDecodeError:
@@ -812,42 +1043,50 @@ def bulk_attr_options_save(request):
     errors = []
     
     with transaction.atomic():
-        # Create new options
+        # Create new types
         for item in to_create:
             try:
-                attr_type = AttributeType.objects.get(pk=item['attribute_type_id'])
-                
-                # Check if already exists
-                if AttributeOption.objects.filter(
-                    attribute_type=attr_type,
-                    value=item['value']
-                ).exists():
-                    errors.append(f"Opção '{item['value']}' já existe")
+                name = item.get('name', '').strip()
+                if not name:
                     continue
                 
-                AttributeOption.objects.create(
-                    attribute_type=attr_type,
-                    value=item['value'],
-                    display_value=item.get('display_value', ''),
-                    color_hex=item.get('color_hex', ''),
+                slug = item.get('slug', '').strip() or slugify(name)
+                
+                if AttributeType.objects.filter(slug=slug).exists():
+                    errors.append(f"Slug '{slug}' já existe")
+                    continue
+                
+                AttributeType.objects.create(
+                    name=name,
+                    slug=slug,
+                    datatype=item.get('datatype', 'text'),
                     display_order=item.get('display_order', 0)
                 )
                 created_count += 1
             except Exception as e:
-                errors.append(f"Erro ao criar '{item.get('value', '?')}': {str(e)}")
+                errors.append(f"Erro ao criar '{item.get('name', '?')}': {str(e)}")
         
-        # Update existing options
+        # Update existing types
         for item in to_update:
             try:
-                opt = AttributeOption.objects.get(pk=item['id'])
-                opt.value = item['value']
-                opt.display_value = item.get('display_value', '')
-                opt.color_hex = item.get('color_hex', '')
-                opt.display_order = item.get('display_order', 0)
-                opt.save()
+                at = AttributeType.objects.get(pk=item['id'])
+                if item.get('name'):
+                    at.name = item['name']
+                if item.get('slug'):
+                    # Check if new slug conflicts
+                    new_slug = item['slug']
+                    if new_slug != at.slug and AttributeType.objects.filter(slug=new_slug).exists():
+                        errors.append(f"Slug '{new_slug}' já existe")
+                        continue
+                    at.slug = new_slug
+                if 'datatype' in item:
+                    at.datatype = item['datatype']
+                if 'display_order' in item:
+                    at.display_order = item['display_order']
+                at.save()
                 updated_count += 1
-            except AttributeOption.DoesNotExist:
-                errors.append(f"Opção ID {item.get('id')} não encontrada")
+            except AttributeType.DoesNotExist:
+                errors.append(f"Tipo ID {item.get('id')} não encontrado")
             except Exception as e:
                 errors.append(f"Erro ao atualizar ID {item.get('id')}: {str(e)}")
     
@@ -863,7 +1102,7 @@ def bulk_attr_options_save(request):
 @require_http_methods(["POST"])
 @csrf_protect
 def bulk_create_attr_type(request):
-    """API endpoint to create a new attribute type."""
+    """API endpoint to create a new attribute type (legacy, used by modal)."""
     try:
         payload = json.loads(request.body)
     except json.JSONDecodeError:
