@@ -834,21 +834,21 @@
             const groupsCount = rowData.group_count || 0;
             const attrsCount = rowData.attr_types_count || 0;
             td.innerHTML = `
-                <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start;">
+                <div style="display:flex;flex-direction:row;gap:10px;align-items:center;justify-content:center;height:100%;">
                     <a href="#" onclick="viewProductVariants(${productId}); return false;"
-                       title="Ver variantes" style="color:#417690;text-decoration:none;display:flex;align-items:center;gap:6px;">
-                        <span>🏷️</span>
-                        <span style="font-size:12px;">Variantes (${variantsCount})</span>
+                       title="Variantes (${variantsCount})" style="cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:3px;color:#333;">
+                        <span style="font-size:14px;">🏷️</span>
+                        <span style="font-size:11px;font-weight:600;">${variantsCount}</span>
                     </a>
                     <a href="#" onclick="viewProductGroups(${productId}); return false;"
-                       title="Ver grupos" style="color:#417690;text-decoration:none;display:flex;align-items:center;gap:6px;">
-                        <span>📁</span>
-                        <span style="font-size:12px;">Grupos (${groupsCount})</span>
+                       title="Grupos (${groupsCount})" style="cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:3px;color:#333;">
+                        <span style="font-size:14px;">📁</span>
+                        <span style="font-size:11px;font-weight:600;">${groupsCount}</span>
                     </a>
                     <a href="#" onclick="viewProductAttributes(${productId}); return false;"
-                       title="Ver atributos" style="color:#417690;text-decoration:none;display:flex;align-items:center;gap:6px;">
-                        <span>⚙️</span>
-                        <span style="font-size:12px;">Atributos (${attrsCount})</span>
+                       title="Atributos (${attrsCount})" style="cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:3px;color:#333;">
+                        <span style="font-size:14px;">⚙️</span>
+                        <span style="font-size:11px;font-weight:600;">${attrsCount}</span>
                     </a>
                 </div>
             `;
