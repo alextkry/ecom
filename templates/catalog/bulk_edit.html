@@ -1088,7 +1088,7 @@
         
         productsHot = new Handsontable(container, {
             data: jsonData.data,
-            colHeaders: ['ID', 'Nome', '', 'Slug', 'Descrição', 'SKU', 'Preço Custo', 'Preço Venda', 'Estoque', 'Ativo', 'Categorias', 'Atributos', 'Variantes', 'Grupos', 'Criado em', 'Ações'],
+            colHeaders: ['ID', 'Nome', '', 'Slug', 'Descrição', 'SKU', 'Preço Custo', 'Preço Venda', 'Estoque', 'Ativo', 'Categorias', 'Atributos', 'Variantes', 'Grupos', 'Criado em', 'Modificado em', 'Ações'],
             columns: [
                 {data: 'id', readOnly: true, width: 50},
                 {data: 'name', width: 180},
@@ -1105,6 +1105,7 @@
                 {data: 'variants_json', renderer: jsonVariantsRenderer, width: 180},
                 {data: 'groups_json', renderer: jsonGroupsRenderer, width: 150},
                 {data: 'created_at', readOnly: true, width: 130},
+                {data: 'updated_at', readOnly: true, width: 130},
                 {data: 'id', renderer: linksRenderer, readOnly: true, width: 170},
             ],
             rowHeaders: true,

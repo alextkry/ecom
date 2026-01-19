@@ -71,6 +71,14 @@ def bulk_products_data(request):
                 'pai': cat.parent.slug if cat.parent else None,
             })
         
+        latest_variant_update = product.variants.aggregate(
+            max_updated=Max('updated_at')
+        )['max_updated']
+        latest_update = max(
+            filter(None, [product.updated_at, latest_variant_update]),
+            default=None,
+        )
+
         row = {
             'id': product.id,
             'name': product.name,
@@ -83,6 +91,7 @@ def bulk_products_data(request):
             'image_count': VariantImage.objects.filter(variant__product=product).count(),
             'thumbnail_url': product.get_thumbnail_url(),
             'created_at': product.created_at.strftime('%Y-%m-%d %H:%M') if product.created_at else '',
+            'updated_at': latest_update.strftime('%Y-%m-%d %H:%M') if latest_update else '',
             # Variant fields (for products without variants or with single variant)
             'has_variants': variant_count > 1,
             'variant_id': None,
