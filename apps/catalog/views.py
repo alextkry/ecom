@@ -156,7 +156,6 @@ def bulk_products_data(request):
                 row['sku'] = variant.sku
                 row['cost_price'] = float(variant.cost_price) if variant.cost_price else None
                 row['sell_price'] = float(variant.sell_price) if variant.sell_price else None
-                row['compare_at_price'] = float(variant.compare_at_price) if variant.compare_at_price else None
                 row['stock_quantity'] = variant.stock_quantity
         else:
             # Calculate statistics for products with multiple variants
@@ -634,7 +633,6 @@ def bulk_products_save(request):
                         name=item['name'],
                         cost_price=Decimal(str(item['cost_price'])) if item.get('cost_price') else None,
                         sell_price=Decimal(str(item['sell_price'])) if item.get('sell_price') else Decimal('0'),
-                        compare_at_price=Decimal(str(item['compare_at_price'])) if item.get('compare_at_price') else None,
                         stock_quantity=item.get('stock_quantity', 0),
                         is_active=True
                     )
@@ -673,7 +671,6 @@ def bulk_products_save(request):
                                 variant.sku = sku
                                 variant.cost_price = Decimal(str(item['cost_price'])) if item.get('cost_price') else None
                                 variant.sell_price = Decimal(str(item['sell_price'])) if item.get('sell_price') else Decimal('0')
-                                variant.compare_at_price = Decimal(str(item['compare_at_price'])) if item.get('compare_at_price') else None
                                 variant.stock_quantity = item.get('stock_quantity', 0)
                                 variant.save()
                             except Variant.DoesNotExist:
@@ -687,7 +684,6 @@ def bulk_products_save(request):
                                     name=product.name,
                                     cost_price=Decimal(str(item['cost_price'])) if item.get('cost_price') else None,
                                     sell_price=Decimal(str(item['sell_price'])) if item.get('sell_price') else Decimal('0'),
-                                    compare_at_price=Decimal(str(item['compare_at_price'])) if item.get('compare_at_price') else None,
                                     stock_quantity=item.get('stock_quantity', 0),
                                     is_active=True
                                 )
@@ -771,7 +767,6 @@ def bulk_variants_data(request):
             'image_count': variant.images.count(),
             'cost_price': float(variant.cost_price) if variant.cost_price else None,
             'sell_price': float(variant.sell_price) if variant.sell_price else None,
-            'compare_at_price': float(variant.compare_at_price) if variant.compare_at_price else None,
             'stock_quantity': variant.stock_quantity,
             'is_active': variant.is_active,
         }
@@ -822,7 +817,6 @@ def bulk_variants_save(request):
                     name=item.get('name', ''),
                     cost_price=Decimal(str(item['cost_price'])) if item.get('cost_price') else None,
                     sell_price=Decimal(str(item['sell_price'])) if item.get('sell_price') else Decimal('0'),
-                    compare_at_price=Decimal(str(item['compare_at_price'])) if item.get('compare_at_price') else None,
                     stock_quantity=item.get('stock_quantity', 0),
                     is_active=item.get('is_active', True)
                 )
@@ -858,13 +852,12 @@ def bulk_variants_save(request):
                 
                 variant.sku = item['sku']
                 variant.name = item.get('name', '')
+                variant.name = item.get('name', '')
                 variant.cost_price = Decimal(str(item['cost_price'])) if item.get('cost_price') else None
                 variant.sell_price = Decimal(str(item['sell_price'])) if item.get('sell_price') else variant.sell_price
-                variant.compare_at_price = Decimal(str(item['compare_at_price'])) if item.get('compare_at_price') else None
                 variant.stock_quantity = item.get('stock_quantity', 0)
                 variant.is_active = item.get('is_active', True)
                 variant.save()
-                
                 # Update attributes
                 attributes = item.get('attributes', {})
                 for attr_slug, value in attributes.items():

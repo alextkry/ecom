@@ -830,19 +830,25 @@
             }
             
             const productId = rowData.id;
+            const variantsCount = rowData.variant_count || 0;
+            const groupsCount = rowData.group_count || 0;
+            const attrsCount = rowData.attr_types_count || 0;
             td.innerHTML = `
-                <div style="display:flex;gap:8px;justify-content:center;">
-                    <a href="#" onclick="viewProductVariants(${productId}); return false;" 
-                       title="Ver variantes" style="color:#417690;text-decoration:none;">
-                        🏷️ <span style="font-size:11px;">${rowData.variant_count || 0}</span>
+                <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start;">
+                    <a href="#" onclick="viewProductVariants(${productId}); return false;"
+                       title="Ver variantes" style="color:#417690;text-decoration:none;display:flex;align-items:center;gap:6px;">
+                        <span>🏷️</span>
+                        <span style="font-size:12px;">Variantes (${variantsCount})</span>
                     </a>
-                    <a href="#" onclick="viewProductGroups(${productId}); return false;" 
-                       title="Ver grupos" style="color:#417690;text-decoration:none;">
-                        📁 <span style="font-size:11px;">${rowData.group_count || 0}</span>
+                    <a href="#" onclick="viewProductGroups(${productId}); return false;"
+                       title="Ver grupos" style="color:#417690;text-decoration:none;display:flex;align-items:center;gap:6px;">
+                        <span>📁</span>
+                        <span style="font-size:12px;">Grupos (${groupsCount})</span>
                     </a>
-                    <a href="#" onclick="viewProductAttributes(${productId}); return false;" 
-                       title="Ver atributos" style="color:#417690;text-decoration:none;">
-                        ⚙️ <span style="font-size:11px;">${rowData.attr_types_count || 0}</span>
+                    <a href="#" onclick="viewProductAttributes(${productId}); return false;"
+                       title="Ver atributos" style="color:#417690;text-decoration:none;display:flex;align-items:center;gap:6px;">
+                        <span>⚙️</span>
+                        <span style="font-size:12px;">Atributos (${attrsCount})</span>
                     </a>
                 </div>
             `;
@@ -867,10 +873,12 @@
                 const stats = rowData.price_stats;
                 if (stats.cost_min !== null) {
                     td.innerHTML = `
-                        <div style="font-size:10px;line-height:1.3;color:#666;">
-                            <span title="Mínimo">↓${stats.cost_min.toFixed(2)}</span>
-                            <span title="Máximo">↑${stats.cost_max.toFixed(2)}</span>
-                            <br><span title="Média" style="color:#417690;">μ${stats.cost_avg.toFixed(2)}</span>
+                        <div style="font-size:10px;line-height:1.2;color:#666;white-space:nowrap;">
+                            <span title="Média" style="color:#417690;">μ: ${stats.cost_avg.toFixed(2)}</span>
+                            <span> / </span>
+                            <span title="Mínimo">↓: ${stats.cost_min.toFixed(2)}</span>
+                            <span> / </span>
+                            <span title="Máximo">↑: ${stats.cost_max.toFixed(2)}</span>
                         </div>
                     `;
                 } else {
@@ -891,10 +899,12 @@
                 const stats = rowData.price_stats;
                 if (stats.sell_min !== null) {
                     td.innerHTML = `
-                        <div style="font-size:10px;line-height:1.3;color:#666;">
-                            <span title="Mínimo">↓${stats.sell_min.toFixed(2)}</span>
-                            <span title="Máximo">↑${stats.sell_max.toFixed(2)}</span>
-                            <br><span title="Média" style="color:#417690;">μ${stats.sell_avg.toFixed(2)}</span>
+                        <div style="font-size:10px;line-height:1.2;color:#666;white-space:nowrap;">
+                            <span title="Média" style="color:#417690;">μ: ${stats.sell_avg.toFixed(2)}</span>
+                            <span> / </span>
+                            <span title="Mínimo">↓: ${stats.sell_min.toFixed(2)}</span>
+                            <span> / </span>
+                            <span title="Máximo">↑: ${stats.sell_max.toFixed(2)}</span>
                         </div>
                     `;
                 } else {
@@ -914,11 +924,14 @@
             if (rowData && rowData.has_variants && rowData.stock_stats) {
                 const stats = rowData.stock_stats;
                 td.innerHTML = `
-                    <div style="font-size:10px;line-height:1.3;color:#666;">
-                        <span title="Mínimo">↓${stats.min}</span>
-                        <span title="Máximo">↑${stats.max}</span>
-                        <br><span title="Média">μ${stats.avg}</span>
-                        <span title="Total" style="color:#28a745;font-weight:bold;">Σ${stats.total}</span>
+                    <div style="font-size:10px;line-height:1.2;color:#666;white-space:nowrap;">
+                        <span title="Mínimo">↓: ${stats.min}</span>
+                        <span> / </span>
+                        <span title="Máximo">↑: ${stats.max}</span>
+                        <span> / </span>
+                        <span title="Média">μ: ${stats.avg}</span>
+                        <span> / </span>
+                        <span title="Total" style="color:#28a745;font-weight:bold;">Σ: ${stats.total}</span>
                     </div>
                 `;
                 td.style.backgroundColor = '#f5f5f5';
@@ -1029,11 +1042,11 @@
         
         productsHot = new Handsontable(container, {
             data: jsonData.data,
-            colHeaders: ['', 'ID', 'Nome', 'Slug', 'Descrição', 'SKU', 'Preço Custo', 'Preço Venda', 'Estoque', 'Ativo', 'Categorias', 'Ações', 'Atributos', 'Variantes', 'Grupos', 'Criado em'],
+            colHeaders: ['ID', 'Nome', '', 'Slug', 'Descrição', 'SKU', 'Preço Custo', 'Preço Venda', 'Estoque', 'Ativo', 'Categorias', 'Atributos', 'Variantes', 'Grupos', 'Criado em', 'Ações'],
             columns: [
-                {data: 'thumbnail_url', renderer: thumbnailRenderer, readOnly: true, width: 60},
                 {data: 'id', readOnly: true, width: 50},
                 {data: 'name', width: 180},
+                {data: 'thumbnail_url', renderer: thumbnailRenderer, readOnly: true, width: 60},
                 {data: 'slug', width: 130},
                 {data: 'description', width: 200},
                 {data: 'sku', width: 100, renderer: variantFieldRenderer},
@@ -1042,11 +1055,11 @@
                 {data: 'stock_quantity', type: 'numeric', width: 80, renderer: variantStockRenderer},
                 {data: 'is_active', type: 'checkbox', width: 60},
                 {data: 'categories_json', renderer: categoriesRenderer, width: 180},
-                {data: 'id', renderer: linksRenderer, readOnly: true, width: 130},
                 {data: 'attributes_json', renderer: jsonAttributesRenderer, width: 150},
                 {data: 'variants_json', renderer: jsonVariantsRenderer, width: 180},
                 {data: 'groups_json', renderer: jsonGroupsRenderer, width: 150},
                 {data: 'created_at', readOnly: true, width: 130},
+                {data: 'id', renderer: linksRenderer, readOnly: true, width: 170},
             ],
             rowHeaders: true,
             contextMenu: {
@@ -1066,6 +1079,7 @@
             filters: true,
             dropdownMenu: true,
             multiColumnSorting: true,
+            fixedColumnsRight: 1,
             stretchH: 'all',
             height: '100%',
             copyPaste: true,
@@ -1731,7 +1745,6 @@
                     sku: row.sku || '',
                     cost_price: row.cost_price,
                     sell_price: row.sell_price,
-                    compare_at_price: row.compare_at_price,
                     stock_quantity: row.stock_quantity || 0,
                     // JSON data - preserve empty arrays [] to signal deletion
                     attributes_json: row.attributes_json !== undefined ? row.attributes_json : null,
@@ -1752,7 +1765,6 @@
                     sku: row.sku || '',
                     cost_price: row.cost_price,
                     sell_price: row.sell_price,
-                    compare_at_price: row.compare_at_price,
                     stock_quantity: row.stock_quantity || 0,
                     // JSON data - preserve empty arrays [] to signal deletion
                     attributes_json: row.attributes_json !== undefined ? row.attributes_json : null,
@@ -1912,7 +1924,6 @@
         columns.push(
             {data: 'cost_price', type: 'numeric', numericFormat: {pattern: '0.00'}, width: 100, title: 'Preço Custo'},
             {data: 'sell_price', type: 'numeric', numericFormat: {pattern: '0.00'}, width: 100, title: 'Preço Venda'},
-            {data: 'compare_at_price', type: 'numeric', numericFormat: {pattern: '0.00'}, width: 100, title: 'Preço Comp.'},
             {data: 'stock_quantity', type: 'numeric', width: 80, title: 'Estoque'},
             {data: 'is_active', type: 'checkbox', width: 60, title: 'Ativo'},
         );
@@ -2060,7 +2071,6 @@
                 name: row.name || '',
                 cost_price: row.cost_price,
                 sell_price: row.sell_price,
-                compare_at_price: row.compare_at_price,
                 stock_quantity: row.stock_quantity || 0,
                 is_active: row.is_active !== false,
                 attributes: attributes
