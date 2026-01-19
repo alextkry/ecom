@@ -119,6 +119,8 @@ class VariantGroup(models.Model):
     def price_range(self):
         """Return price range string."""
         min_p, max_p = self.min_price, self.max_price
+        if min_p is None or max_p is None:
+            return "-"
         if min_p == max_p:
             return f"R$ {min_p:.2f}"
         return f"R$ {min_p:.2f} - R$ {max_p:.2f}"
