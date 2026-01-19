@@ -80,6 +80,7 @@ def bulk_products_data(request):
             'variant_count': variant_count,
             'group_count': product.variant_groups.count(),
             'attr_types_count': attr_types_count,
+            'image_count': VariantImage.objects.filter(variant__product=product).count(),
             'thumbnail_url': product.get_thumbnail_url(),
             'created_at': product.created_at.strftime('%Y-%m-%d %H:%M') if product.created_at else '',
             # Variant fields (for products without variants or with single variant)

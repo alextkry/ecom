@@ -806,6 +806,38 @@
         function thumbnailRenderer(instance, td, row, col, prop, value, cellProperties) {
             Handsontable.renderers.TextRenderer.apply(this, arguments);
             td.innerHTML = '';
+            td.style.textAlign = 'center';
+
+            const rowData = instance.getSourceDataAtRow(row);
+            if (!rowData || !rowData.id) {
+                td.innerHTML = '<span style="color:#999;font-size:10px;cursor:pointer;" title="Salve primeiro">💾</span>';
+                return;
+            }
+
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;';
+
+            if (rowData.has_variants) {
+                wrapper.title = 'Clique para gerenciar imagens nas variantes';
+                wrapper.onclick = (e) => {
+                    e.stopPropagation();
+                    viewProductVariants(rowData.id);
+                    setStatus('products-status', 'Indo para variantes para gerenciar imagens...', 'info');
+                };
+            } else {
+                const variantId = rowData.variant_id;
+                if (variantId) {
+                    wrapper.title = 'Clique para gerenciar imagens';
+                    wrapper.onclick = (e) => {
+                        e.stopPropagation();
+                        openImageModal(variantId, rowData.sku || rowData.name || '');
+                    };
+                } else {
+                    wrapper.title = 'Salve o produto para adicionar imagens';
+                    wrapper.style.cursor = 'default';
+                }
+            }
+
             if (value) {
                 const img = document.createElement('img');
                 img.src = value;
@@ -813,11 +845,25 @@
                 img.style.height = '40px';
                 img.style.objectFit = 'cover';
                 img.style.borderRadius = '4px';
-                td.appendChild(img);
+                wrapper.appendChild(img);
             } else {
-                td.innerHTML = '<span style="color:#999;font-size:11px;">Sem imagem</span>';
+                const icon = document.createElement('span');
+                icon.innerHTML = '📷';
+                icon.style.cssText = 'font-size:16px;color:#999;';
+                wrapper.appendChild(icon);
+                const hint = document.createElement('span');
+                hint.textContent = rowData.has_variants ? 'Gerenciar' : 'Adicionar';
+                hint.style.cssText = 'font-size:9px;color:#888;';
+                wrapper.appendChild(hint);
             }
-            td.style.textAlign = 'center';
+
+            const imageCount = Number.isFinite(rowData.image_count) ? rowData.image_count : 0;
+            const badge = document.createElement('span');
+            badge.textContent = `(${imageCount})`;
+            badge.style.cssText = 'font-size:9px;color:#666;';
+            wrapper.appendChild(badge);
+
+            td.appendChild(wrapper);
         }
         
         // Custom renderer for links
