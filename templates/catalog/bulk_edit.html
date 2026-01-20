@@ -333,6 +333,174 @@
     .category-level-1 { color: #444; }
     .category-level-2 { color: #666; }
     .category-level-3 { color: #888; font-style: italic; }
+    
+    /* =========================================
+       CHANGE TRACKING - VISUAL DIFF STYLES
+       ========================================= */
+    
+    /* Edited cell indicator (yellow background) */
+    .cell-edited {
+        background-color: #fff3cd !important;
+        border-left: 3px solid #ffc107 !important;
+    }
+    
+    /* Row with changes indicator */
+    .row-edited td:first-child {
+        position: relative;
+    }
+    .row-edited td:first-child::before {
+        content: '●';
+        position: absolute;
+        left: 2px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #ffc107;
+        font-size: 10px;
+    }
+    
+    /* Tab badge for pending changes */
+    .tab-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 20px;
+        height: 20px;
+        background: #ffc107;
+        color: #333;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: bold;
+        margin-left: 6px;
+        padding: 0 6px;
+    }
+    
+    /* Diff modal styles */
+    .diff-modal-content {
+        background-color: white;
+        color: #333;
+        margin: 5% auto;
+        padding: 25px;
+        border-radius: 8px;
+        width: 700px;
+        max-width: 95%;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+    }
+    .diff-modal-content h3 {
+        margin-top: 0;
+        margin-bottom: 20px;
+        color: #333;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .diff-summary {
+        background: #f8f9fa;
+        padding: 12px 15px;
+        border-radius: 6px;
+        margin-bottom: 15px;
+        font-size: 14px;
+        border-left: 4px solid #ffc107;
+    }
+    .diff-list {
+        flex: 1;
+        overflow-y: auto;
+        max-height: 400px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+    }
+    .diff-item {
+        padding: 12px 15px;
+        border-bottom: 1px solid #eee;
+    }
+    .diff-item:last-child {
+        border-bottom: none;
+    }
+    .diff-item-header {
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .diff-item-header .entity-type {
+        background: #e9ecef;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        text-transform: uppercase;
+    }
+    .diff-field {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin: 6px 0;
+        font-size: 13px;
+        padding: 6px 10px;
+        background: #f9f9f9;
+        border-radius: 4px;
+    }
+    .diff-field-name {
+        font-weight: 500;
+        color: #555;
+        min-width: 100px;
+    }
+    .diff-old {
+        color: #dc3545;
+        text-decoration: line-through;
+        background: #ffebee;
+        padding: 2px 6px;
+        border-radius: 3px;
+    }
+    .diff-arrow {
+        color: #666;
+        flex-shrink: 0;
+    }
+    .diff-new {
+        color: #28a745;
+        background: #e8f5e9;
+        padding: 2px 6px;
+        border-radius: 3px;
+    }
+    .diff-empty {
+        color: #999;
+        font-style: italic;
+    }
+    
+    /* Pending changes toolbar */
+    .pending-changes-bar {
+        display: none;
+        background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
+        padding: 10px 15px;
+        border-radius: 6px;
+        margin-bottom: 15px;
+        border: 1px solid #ffc107;
+        align-items: center;
+        justify-content: space-between;
+        gap: 15px;
+    }
+    .pending-changes-bar.visible {
+        display: flex;
+    }
+    .pending-changes-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+    }
+    .pending-changes-info strong {
+        color: #856404;
+    }
+    .pending-changes-actions {
+        display: flex;
+        gap: 10px;
+    }
+    .pending-changes-actions button {
+        padding: 6px 12px;
+        font-size: 13px;
+    }
 </style>
 {% endblock %}
 
@@ -353,11 +521,23 @@
         <div class="help-text">
             <strong>Dica:</strong> Adicione novas linhas clicando com botão direito → "Inserir linha abaixo". 
             Use <strong>Ctrl+C/Ctrl+V</strong> para copiar/colar. Células verdes são novas linhas não salvas.
+            <span style="color: #856404;">Células amarelas indicam alterações não salvas.</span>
+        </div>
+        
+        <!-- Pending changes bar -->
+        <div id="products-pending-bar" class="pending-changes-bar">
+            <div class="pending-changes-info">
+                ⚠️ <strong id="products-pending-count">0 alterações</strong> pendentes
+            </div>
+            <div class="pending-changes-actions">
+                <button type="button" class="secondary" onclick="discardProductChanges()">🗑️ Descartar</button>
+                <button type="button" class="success" onclick="showProductsDiff()">👁️ Ver Alterações</button>
+            </div>
         </div>
         
         <div class="controls">
             <button type="button" onclick="addProductRow()">➕ Nova Linha</button>
-            <button type="button" class="success" onclick="saveProducts()">💾 Salvar Produtos</button>
+            <button type="button" class="success" onclick="showProductsDiff()">💾 Salvar Produtos</button>
             <button type="button" class="secondary" onclick="loadProducts()">🔄 Recarregar</button>
         </div>
         
@@ -373,6 +553,18 @@
             <strong>Dica:</strong> Selecione um produto para ver suas variantes. 
             <strong>Duplique linhas</strong> clicando com botão direito → "Duplicar linha". 
             Edite SKU e atributos para criar novas variantes.
+            <span style="color: #856404;">Células amarelas indicam alterações não salvas.</span>
+        </div>
+        
+        <!-- Pending changes bar -->
+        <div id="variants-pending-bar" class="pending-changes-bar">
+            <div class="pending-changes-info">
+                ⚠️ <strong id="variants-pending-count">0 alterações</strong> pendentes
+            </div>
+            <div class="pending-changes-actions">
+                <button type="button" class="secondary" onclick="discardVariantChanges()">🗑️ Descartar</button>
+                <button type="button" class="success" onclick="showVariantsDiff()">👁️ Ver Alterações</button>
+            </div>
         </div>
         
         <div class="controls">
@@ -386,7 +578,7 @@
             
             <button type="button" onclick="addVariantRow()">➕ Nova Variante</button>
             <button type="button" onclick="duplicateVariantRows()">📋 Duplicar Selecionadas</button>
-            <button type="button" class="success" onclick="saveVariants()">💾 Salvar Variantes</button>
+            <button type="button" class="success" onclick="showVariantsDiff()">💾 Salvar Variantes</button>
             <button type="button" class="warning" onclick="openGroupModal()">📁 Adicionar a Grupo</button>
         </div>
         
@@ -725,6 +917,28 @@
     </div>
 </div>
 
+<!-- Modal: Confirm Changes (Diff) -->
+<div id="diff-modal" class="modal">
+    <div class="diff-modal-content">
+        <h3>📋 Confirmar Alterações</h3>
+        
+        <div class="diff-summary">
+            <strong id="diff-summary-text">0 alterações pendentes</strong>
+            <span id="diff-summary-details"></span>
+        </div>
+        
+        <div class="diff-list" id="diff-list">
+            <!-- Diff items will be inserted here -->
+        </div>
+        
+        <div class="modal-buttons" style="margin-top: 20px;">
+            <button type="button" class="secondary" onclick="closeDiffModal()">Cancelar</button>
+            <button type="button" class="warning" onclick="discardAllChanges()">🗑️ Descartar Tudo</button>
+            <button type="button" class="success" onclick="confirmAndSave()">✅ Confirmar e Salvar</button>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/handsontable@14/dist/handsontable.full.min.js"></script>
 <script>
     const csrfToken = '{{ csrf_token }}';
@@ -748,6 +962,605 @@
     let newAttrOptionRows = new Set();
     let newCategoryRows = new Set();
     
+    // =============================================================================
+    // CHANGE TRACKING SYSTEM
+    // =============================================================================
+    
+    // Store for tracking changes: { 'products': { rowKey: { field: {old, new} } }, 'variants': {...} }
+    let pendingChanges = {
+        products: {},   // key: product.id or 'new_rowIndex', value: { field: {oldValue, newValue} }
+        variants: {}
+    };
+    
+    // Original data snapshot (for comparison)
+    let originalData = {
+        products: {},  // key: product.id, value: {...originalRow}
+        variants: {}
+    };
+    
+    // Current save context
+    let currentSaveContext = null; // 'products' or 'variants'
+    
+    /**
+     * Store original row data when grid is loaded
+     */
+    function storeOriginalData(context, data) {
+        originalData[context] = {};
+        data.forEach((row, index) => {
+            if (row.id) {
+                // Deep clone to avoid reference issues
+                originalData[context][row.id] = JSON.parse(JSON.stringify(row));
+            }
+        });
+        console.log('[storeOriginalData]', context, Object.keys(originalData[context]).length, 'rows');
+    }
+    
+    /**
+     * Compare two values for equality
+     */
+    function valuesAreEqual(val1, val2) {
+        var v1 = (val1 === null || val1 === undefined) ? '' : val1;
+        var v2 = (val2 === null || val2 === undefined) ? '' : val2;
+        
+        if (v1 === v2) return true;
+        
+        // Try numeric comparison
+        var n1 = Number(v1);
+        var n2 = Number(v2);
+        if (!isNaN(n1) && !isNaN(n2) && n1 === n2) return true;
+        
+        // String comparison
+        return String(v1).trim() === String(v2).trim();
+    }
+    
+    /**
+     * Get original value from snapshot
+     */
+    function getOriginalValue(context, rowId, field) {
+        if (!rowId || !originalData[context] || !originalData[context][rowId]) {
+            return undefined;
+        }
+        return originalData[context][rowId][field];
+    }
+    
+    /**
+     * Track a change in a cell
+     */
+    function trackChange(context, rowIndex, field, oldValue, newValue, rowData) {
+        // Determine row key (use ID if exists, otherwise use temp key for new rows)
+        const rowKey = rowData.id ? `id_${rowData.id}` : `new_${rowIndex}`;
+        const isNewRow = context === 'products' ? newProductRows.has(rowIndex) : newVariantRows.has(rowIndex);
+        
+        // Skip if no actual change
+        if (JSON.stringify(oldValue) === JSON.stringify(newValue)) {
+            // Remove tracking if value reverted to original
+            if (pendingChanges[context][rowKey] && pendingChanges[context][rowKey][field]) {
+                delete pendingChanges[context][rowKey][field];
+                if (Object.keys(pendingChanges[context][rowKey]).length === 0) {
+                    delete pendingChanges[context][rowKey];
+                }
+            }
+            updateChangeIndicators(context);
+            return;
+        }
+        
+        // Initialize row tracking if needed
+        if (!pendingChanges[context][rowKey]) {
+            pendingChanges[context][rowKey] = {
+                _meta: {
+                    rowIndex: rowIndex,
+                    entityId: rowData.id || null,
+                    entityName: rowData.name || rowData.sku || `Linha ${rowIndex + 1}`,
+                    isNew: isNewRow
+                }
+            };
+        }
+        
+        // Store the change
+        pendingChanges[context][rowKey][field] = {
+            oldValue: oldValue,
+            newValue: newValue
+        };
+        
+        // Update UI indicators
+        updateChangeIndicators(context);
+        
+        // Schedule draft save to localStorage
+        scheduleDraftSave(context);
+    }
+    
+    /**
+     * Update visual indicators for pending changes
+     */
+    function updateChangeIndicators(context) {
+        const changes = pendingChanges[context];
+        const changeCount = Object.keys(changes).length;
+        const fieldCount = Object.values(changes).reduce((acc, row) => {
+            return acc + Object.keys(row).filter(k => k !== '_meta').length;
+        }, 0);
+        
+        // Update pending bar visibility and count
+        const pendingBar = document.getElementById(`${context}-pending-bar`);
+        const pendingCount = document.getElementById(`${context}-pending-count`);
+        
+        if (pendingBar && pendingCount) {
+            if (fieldCount > 0) {
+                pendingBar.classList.add('visible');
+                pendingCount.textContent = `${fieldCount} alteração(ões) em ${changeCount} registro(s)`;
+            } else {
+                pendingBar.classList.remove('visible');
+            }
+        }
+        
+        // Update tab badge
+        updateTabBadge(context, fieldCount);
+        
+        // Refresh grid to show cell highlighting
+        if (context === 'products' && productsHot) {
+            productsHot.render();
+        } else if (context === 'variants' && variantsHot) {
+            variantsHot.render();
+        }
+    }
+    
+    /**
+     * Update tab badge with change count
+     */
+    function updateTabBadge(context, count) {
+        const tabButton = document.querySelector(`.tab[onclick*="${context}"]`);
+        if (!tabButton) return;
+        
+        // Remove existing badge
+        const existingBadge = tabButton.querySelector('.tab-badge');
+        if (existingBadge) {
+            existingBadge.remove();
+        }
+        
+        // Add new badge if there are changes
+        if (count > 0) {
+            const badge = document.createElement('span');
+            badge.className = 'tab-badge';
+            badge.textContent = count;
+            tabButton.appendChild(badge);
+        }
+    }
+    
+    /**
+     * Check if a cell has pending changes
+     */
+    function hasPendingChange(context, rowIndex, field, rowData) {
+        const rowKey = rowData.id ? `id_${rowData.id}` : `new_${rowIndex}`;
+        return pendingChanges[context][rowKey] && pendingChanges[context][rowKey][field];
+    }
+    
+    /**
+     * Custom cell renderer that adds yellow highlight to edited cells
+     */
+    function editedCellRenderer(context) {
+        return function(instance, td, row, col, prop, value, cellProperties) {
+            // Call default renderer first
+            Handsontable.renderers.TextRenderer.apply(this, arguments);
+            
+            const rowData = instance.getSourceDataAtRow(row);
+            if (rowData && hasPendingChange(context, row, prop, rowData)) {
+                td.classList.add('cell-edited');
+            }
+        };
+    }
+    
+    /**
+     * Show diff modal for products
+     */
+    function showProductsDiff() {
+        currentSaveContext = 'products';
+        showDiffModal('products');
+    }
+    
+    /**
+     * Show diff modal for variants
+     */
+    function showVariantsDiff() {
+        currentSaveContext = 'variants';
+        showDiffModal('variants');
+    }
+    
+    /**
+     * Display the diff modal with all pending changes
+     */
+    function showDiffModal(context) {
+        const changes = pendingChanges[context];
+        const changeKeys = Object.keys(changes);
+        
+        // Check if there are any changes or new rows
+        const newRowsSet = context === 'products' ? newProductRows : newVariantRows;
+        const hasNewRows = newRowsSet.size > 0;
+        const hasChanges = changeKeys.length > 0;
+        
+        if (!hasChanges && !hasNewRows) {
+            // No changes, just save directly (will likely do nothing)
+            if (context === 'products') {
+                saveProducts();
+            } else {
+                saveVariants();
+            }
+            return;
+        }
+        
+        // Build diff list HTML
+        const diffList = document.getElementById('diff-list');
+        diffList.innerHTML = '';
+        
+        let totalFields = 0;
+        const entityLabel = context === 'products' ? 'Produto' : 'Variante';
+        
+        // Group changes by row
+        changeKeys.forEach(rowKey => {
+            const rowChanges = changes[rowKey];
+            const meta = rowChanges._meta || {};
+            
+            const item = document.createElement('div');
+            item.className = 'diff-item';
+            
+            // Header
+            const header = document.createElement('div');
+            header.className = 'diff-item-header';
+            header.innerHTML = `
+                <span class="entity-type">${meta.isNew ? '🆕 Novo' : '✏️ Editado'}</span>
+                <span>${entityLabel}: <strong>${escapeHtml(meta.entityName || 'Sem nome')}</strong></span>
+                ${meta.entityId ? `<span style="color:#999;font-size:11px;">(ID: ${meta.entityId})</span>` : ''}
+            `;
+            item.appendChild(header);
+            
+            // Field changes
+            Object.keys(rowChanges).forEach(field => {
+                if (field === '_meta') return;
+                
+                const change = rowChanges[field];
+                totalFields++;
+                
+                const fieldDiv = document.createElement('div');
+                fieldDiv.className = 'diff-field';
+                
+                const oldDisplay = formatValueForDisplay(change.oldValue);
+                const newDisplay = formatValueForDisplay(change.newValue);
+                
+                fieldDiv.innerHTML = `
+                    <span class="diff-field-name">${getFieldLabel(field)}:</span>
+                    <span class="${oldDisplay ? 'diff-old' : 'diff-empty'}">${oldDisplay || '(vazio)'}</span>
+                    <span class="diff-arrow">→</span>
+                    <span class="${newDisplay ? 'diff-new' : 'diff-empty'}">${newDisplay || '(vazio)'}</span>
+                `;
+                item.appendChild(fieldDiv);
+            });
+            
+            diffList.appendChild(item);
+        });
+        
+        // Add new rows info
+        if (hasNewRows) {
+            newRowsSet.forEach(rowIndex => {
+                const hot = context === 'products' ? productsHot : variantsHot;
+                if (!hot) return;
+                
+                const rowData = hot.getSourceDataAtRow(rowIndex);
+                if (!rowData || !rowData.name) return;
+                
+                // Skip if already tracked as changed
+                const rowKey = `new_${rowIndex}`;
+                if (changes[rowKey]) return;
+                
+                const item = document.createElement('div');
+                item.className = 'diff-item';
+                item.innerHTML = `
+                    <div class="diff-item-header">
+                        <span class="entity-type">🆕 Novo</span>
+                        <span>${entityLabel}: <strong>${escapeHtml(rowData.name || rowData.sku || 'Sem nome')}</strong></span>
+                    </div>
+                    <div class="diff-field">
+                        <span class="diff-field-name">Status:</span>
+                        <span class="diff-new">Será criado ao salvar</span>
+                    </div>
+                `;
+                diffList.appendChild(item);
+                totalFields++;
+            });
+        }
+        
+        // Update summary
+        document.getElementById('diff-summary-text').textContent = 
+            `${totalFields} alteração(ões) em ${changeKeys.length + (hasNewRows ? newRowsSet.size : 0)} registro(s)`;
+        
+        // Show modal
+        document.getElementById('diff-modal').style.display = 'block';
+    }
+    
+    /**
+     * Get human-readable field label
+     */
+    function getFieldLabel(field) {
+        const labels = {
+            'name': 'Nome',
+            'slug': 'Slug',
+            'description': 'Descrição',
+            'sku': 'SKU',
+            'cost_price': 'Preço Custo',
+            'sell_price': 'Preço Venda',
+            'stock_quantity': 'Estoque',
+            'is_active': 'Ativo',
+            'categories_json': 'Categorias',
+            'attributes_json': 'Atributos',
+            'variants_json': 'Variantes',
+            'groups_json': 'Grupos'
+        };
+        return labels[field] || field;
+    }
+    
+    /**
+     * Format value for display in diff
+     */
+    function formatValueForDisplay(value) {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
+        if (typeof value === 'object') {
+            if (Array.isArray(value)) {
+                if (value.length === 0) return '(lista vazia)';
+                // Try to extract meaningful info
+                return value.map(v => v.nome || v.atributo || v.sku || JSON.stringify(v)).join(', ');
+            }
+            return JSON.stringify(value);
+        }
+        return String(value);
+    }
+    
+    /**
+     * Escape HTML for safe display
+     */
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    /**
+     * Close diff modal
+     */
+    function closeDiffModal(keepContext = false) {
+        document.getElementById('diff-modal').style.display = 'none';
+        if (!keepContext) {
+            currentSaveContext = null;
+        }
+    }
+    
+    /**
+     * Discard all changes for current context
+     */
+    function discardAllChanges() {
+        if (!currentSaveContext) return;
+        
+        if (currentSaveContext === 'products') {
+            discardProductChanges();
+        } else {
+            discardVariantChanges();
+        }
+        
+        closeDiffModal();
+    }
+    
+    /**
+     * Discard product changes and reload
+     */
+    function discardProductChanges() {
+        pendingChanges.products = {};
+        newProductRows.clear();
+        updateChangeIndicators('products');
+        loadProducts();
+    }
+    
+    /**
+     * Discard variant changes and reload
+     */
+    function discardVariantChanges() {
+        pendingChanges.variants = {};
+        newVariantRows.clear();
+        updateChangeIndicators('variants');
+        if (currentProductId) {
+            loadVariants();
+        }
+    }
+    
+    /**
+     * Confirm and save changes
+     */
+    function confirmAndSave() {
+        const context = currentSaveContext;
+        closeDiffModal(true);
+        
+        if (context === 'products') {
+            saveProducts();
+        } else if (context === 'variants') {
+            saveVariants();
+        }
+        currentSaveContext = null;
+    }
+    
+    /**
+     * Clear pending changes after successful save
+     */
+    function clearPendingChanges(context) {
+        pendingChanges[context] = {};
+        updateChangeIndicators(context);
+        // Clear localStorage draft
+        localStorage.removeItem(`bulkEdit_draft_${context}`);
+    }
+    
+    // =============================================================================
+    // LOCAL STORAGE DRAFT SYSTEM
+    // =============================================================================
+    
+    const DRAFT_SAVE_DEBOUNCE = 2000; // Save draft every 2 seconds of inactivity
+    let draftSaveTimers = {};
+    
+    /**
+     * Schedule saving draft to localStorage (debounced)
+     */
+    function scheduleDraftSave(context) {
+        if (draftSaveTimers[context]) {
+            clearTimeout(draftSaveTimers[context]);
+        }
+        
+        draftSaveTimers[context] = setTimeout(() => {
+            saveDraftToLocalStorage(context);
+        }, DRAFT_SAVE_DEBOUNCE);
+    }
+    
+    /**
+     * Save current grid data and pending changes to localStorage
+     */
+    function saveDraftToLocalStorage(context) {
+        const changes = pendingChanges[context];
+        const changeCount = Object.values(changes).reduce((acc, row) => {
+            return acc + Object.keys(row).filter(k => k !== '_meta').length;
+        }, 0);
+        
+        if (changeCount === 0) {
+            localStorage.removeItem(`bulkEdit_draft_${context}`);
+            return;
+        }
+        
+        const hot = context === 'products' ? productsHot : variantsHot;
+        if (!hot) return;
+        
+        const draft = {
+            timestamp: new Date().toISOString(),
+            context: context,
+            productId: context === 'variants' ? currentProductId : null,
+            pendingChanges: changes,
+            newRows: context === 'products' 
+                ? Array.from(newProductRows) 
+                : Array.from(newVariantRows),
+            // Store modified row data
+            modifiedData: {}
+        };
+        
+        // Store actual row data for modified rows
+        Object.keys(changes).forEach(rowKey => {
+            const meta = changes[rowKey]._meta;
+            if (meta && meta.rowIndex !== undefined) {
+                draft.modifiedData[rowKey] = hot.getSourceDataAtRow(meta.rowIndex);
+            }
+        });
+        
+        try {
+            localStorage.setItem(`bulkEdit_draft_${context}`, JSON.stringify(draft));
+            console.log(`Draft saved for ${context}:`, changeCount, 'changes');
+        } catch (e) {
+            console.warn('Failed to save draft to localStorage:', e);
+        }
+    }
+    
+    /**
+     * Check for and restore draft from localStorage
+     */
+    function checkForDraft(context) {
+        const draftKey = `bulkEdit_draft_${context}`;
+        const draftJson = localStorage.getItem(draftKey);
+        
+        if (!draftJson) return false;
+        
+        try {
+            const draft = JSON.parse(draftJson);
+            const draftTime = new Date(draft.timestamp);
+            const now = new Date();
+            const ageMinutes = (now - draftTime) / 1000 / 60;
+            
+            // Check if draft is for same product (for variants)
+            if (context === 'variants' && draft.productId !== currentProductId) {
+                localStorage.removeItem(draftKey);
+                return false;
+            }
+            
+            // Show recovery prompt
+            const timeAgo = ageMinutes < 60 
+                ? `${Math.round(ageMinutes)} minuto(s)` 
+                : `${Math.round(ageMinutes / 60)} hora(s)`;
+            
+            const changeCount = Object.values(draft.pendingChanges).reduce((acc, row) => {
+                return acc + Object.keys(row).filter(k => k !== '_meta').length;
+            }, 0);
+            
+            if (changeCount > 0 && confirm(
+                `📋 Rascunho encontrado!\n\n` +
+                `Existem ${changeCount} alteração(ões) não salvas de ${timeAgo} atrás.\n\n` +
+                `Deseja restaurar o rascunho?`
+            )) {
+                restoreDraft(context, draft);
+                return true;
+            } else {
+                // User declined - remove draft
+                localStorage.removeItem(draftKey);
+            }
+        } catch (e) {
+            console.warn('Failed to parse draft:', e);
+            localStorage.removeItem(draftKey);
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Restore draft data to grid
+     */
+    function restoreDraft(context, draft) {
+        const hot = context === 'products' ? productsHot : variantsHot;
+        if (!hot) return;
+        
+        // Restore pending changes
+        pendingChanges[context] = draft.pendingChanges;
+        
+        // Restore new rows tracking
+        if (context === 'products') {
+            newProductRows = new Set(draft.newRows || []);
+        } else {
+            newVariantRows = new Set(draft.newRows || []);
+        }
+        
+        // Apply modified data to grid
+        Object.keys(draft.modifiedData).forEach(rowKey => {
+            const rowData = draft.modifiedData[rowKey];
+            const meta = draft.pendingChanges[rowKey]?._meta;
+            
+            if (meta && meta.rowIndex !== undefined && rowData) {
+                // Apply each field change
+                Object.keys(draft.pendingChanges[rowKey]).forEach(field => {
+                    if (field === '_meta') return;
+                    const change = draft.pendingChanges[rowKey][field];
+                    hot.setDataAtRowProp(meta.rowIndex, field, change.newValue, 'restoreDraft');
+                });
+            }
+        });
+        
+        // Update UI
+        updateChangeIndicators(context);
+        hot.render();
+        
+        setStatus(`${context}-status`, 
+            `📋 Rascunho restaurado com ${Object.keys(draft.pendingChanges).length} registro(s) modificado(s).`, 
+            'warning'
+        );
+    }
+    
+    // Add beforeunload warning if there are pending changes
+    window.addEventListener('beforeunload', function(e) {
+        const productsChanges = Object.keys(pendingChanges.products).length;
+        const variantsChanges = Object.keys(pendingChanges.variants).length;
+        
+        if (productsChanges > 0 || variantsChanges > 0) {
+            e.preventDefault();
+            e.returnValue = 'Você tem alterações não salvas. Deseja sair?';
+            return e.returnValue;
+        }
+    });
+
     // =============================================================================
     // TAB SWITCHING
     // =============================================================================
@@ -1042,12 +1855,12 @@
             td.style.textOverflow = 'ellipsis';
             td.style.cursor = 'pointer';
             
-            if (!value || value.length === 0) {
+            if (!value || !Array.isArray(value) || value.length === 0) {
                 td.innerHTML = '<span style="color:#666;text-decoration:underline;">+ Adicionar</span>';
             } else {
                 // Show group names
                 const names = value.map(g => 
-                    `<span style="background:#fff3e0;padding:1px 4px;border-radius:3px;margin-right:3px;">${g.nome}</span>`
+                    `<span style="background:#fff3e0;padding:1px 4px;border-radius:3px;margin-right:3px;">${g.nome || ''}</span>`
                 ).join('');
                 td.innerHTML = names;
             }
@@ -1157,9 +1970,27 @@
             
             cells: function(row, col) {
                 const cellProperties = {};
+                const instance = (this && typeof this.colToProp === 'function')
+                    ? this
+                    : (productsHot && !productsHot.isDestroyed ? productsHot : null);
+                if (!instance || instance.isDestroyed) {
+                    return cellProperties;
+                }
+                const prop = instance.colToProp(col);
+                const rowData = instance.getSourceDataAtRow(row);
+                
+                // Reset className first (important to remove stale classes)
+                cellProperties.className = '';
+                
+                // Apply new-row class
                 if (newProductRows.has(row)) {
                     cellProperties.className = 'new-row';
                 }
+                // Apply edited-cell class only if there's a pending change
+                else if (rowData && hasPendingChange('products', row, prop, rowData)) {
+                    cellProperties.className = 'cell-edited';
+                }
+                
                 return cellProperties;
             },
             
@@ -1226,8 +2057,96 @@
                         }
                     });
                 }
+            },
+            
+            // Track changes for diff display
+            afterChange: function(changes, source) {
+                if (!changes || source === 'loadData') return;
+                
+                changes.forEach(([row, prop, oldValue, newValue]) => {
+                    // Skip read-only or metadata fields
+                    const skipFields = ['id', 'created_at', 'updated_at', 'thumbnail_url', 'variant_count', 
+                                       'group_count', 'attr_types_count', 'image_count', 'has_variants',
+                                       'variant_id', 'price_stats', 'stock_stats'];
+                    if (skipFields.includes(prop)) return;
+                    
+                    const rowData = this.getSourceDataAtRow(row);
+                    if (!rowData) return;
+                    
+                    trackChange('products', row, prop, oldValue, newValue, rowData);
+                });
             }
         });
+        
+        // Add afterChange hook externally (more reliable in some versions)
+        productsHot.addHook('afterChange', function(changes, source) {
+            console.log('[EXTERNAL HOOK] afterChange called', source);
+            if (!changes || source === 'loadData') return;
+            
+            for (let i = 0; i < changes.length; i++) {
+                const [row, prop, oldValue, newValue] = changes[i];
+                
+                // Skip read-only or metadata fields
+                const skipFields = ['id', 'created_at', 'updated_at', 'thumbnail_url', 'variant_count', 
+                                   'group_count', 'attr_types_count', 'image_count', 'has_variants',
+                                   'variant_id', 'price_stats', 'stock_stats'];
+                if (skipFields.indexOf(prop) !== -1) continue;
+                
+                const rowData = productsHot.getSourceDataAtRow(row);
+                if (!rowData) continue;
+                
+                // Get original value from snapshot
+                const originalValue = getOriginalValue('products', rowData.id, prop);
+                const isReverted = valuesAreEqual(newValue, originalValue);
+                
+                console.log('[CHANGE]', prop, ':', oldValue, '->', newValue, '| original:', originalValue, '| reverted:', isReverted);
+                
+                const rowKey = rowData.id ? 'id_' + rowData.id : 'new_' + row;
+                
+                if (isReverted && rowData.id) {
+                    // Remove from pending changes
+                    if (pendingChanges.products[rowKey] && pendingChanges.products[rowKey][prop]) {
+                        delete pendingChanges.products[rowKey][prop];
+                        const remaining = Object.keys(pendingChanges.products[rowKey]).filter(function(k) { return k !== '_meta'; });
+                        if (remaining.length === 0) {
+                            delete pendingChanges.products[rowKey];
+                        }
+                        console.log('[CHANGE] Removed - reverted to original');
+                    }
+                } else {
+                    // Add to pending changes
+                    if (!pendingChanges.products[rowKey]) {
+                        pendingChanges.products[rowKey] = {
+                            _meta: {
+                                rowIndex: row,
+                                entityId: rowData.id || null,
+                                entityName: rowData.name || 'Linha ' + (row + 1),
+                                isNew: newProductRows.has(row)
+                            }
+                        };
+                    }
+                    pendingChanges.products[rowKey][prop] = {
+                        oldValue: originalValue !== undefined ? originalValue : oldValue,
+                        newValue: newValue
+                    };
+                    console.log('[CHANGE] Added change');
+                }
+                
+                updateChangeIndicators('products');
+                scheduleDraftSave('products');
+            }
+        });
+        
+        // Store original data for comparison
+        storeOriginalData('products', jsonData.data);
+        
+        // Clear pending changes when loading fresh data
+        clearPendingChanges('products');
+        
+        // Check for draft after a short delay (let grid initialize)
+        setTimeout(() => {
+            checkForDraft('products');
+        }, 500);
     }
     
     // Navigation functions for product links
@@ -1860,6 +2779,7 @@
                 
                 setStatus('products-status', msg, statusType);
                 newProductRows.clear();
+                clearPendingChanges('products');  // Clear change tracking
                 loadProducts(); // Reload to get IDs
             } else {
                 setStatus('products-status', `Erro: ${result.message}`, 'error');
@@ -2033,15 +2953,58 @@
             
             cells: function(row, col) {
                 const cellProperties = {};
+                const instance = (this && typeof this.colToProp === 'function')
+                    ? this
+                    : (variantsHot && !variantsHot.isDestroyed ? variantsHot : null);
+                if (!instance || instance.isDestroyed) {
+                    return cellProperties;
+                }
+                const prop = instance.colToProp(col);
+                const rowData = instance.getSourceDataAtRow(row);
+                
+                // Reset className first (important to remove stale classes)
+                cellProperties.className = '';
+                
+                // Apply new-row class
                 if (newVariantRows.has(row)) {
                     cellProperties.className = 'new-row';
                 }
+                // Apply edited-cell class only if there's a pending change
+                else if (rowData && hasPendingChange('variants', row, prop, rowData)) {
+                    cellProperties.className = 'cell-edited';
+                }
+                
                 return cellProperties;
+            },
+            
+            // Track changes for diff display
+            afterChange: function(changes, source) {
+                if (!changes || source === 'loadData') return;
+                
+                changes.forEach(([row, prop, oldValue, newValue]) => {
+                    // Skip read-only fields
+                    const skipFields = ['id'];
+                    if (skipFields.includes(prop)) return;
+                    
+                    const rowData = this.getSourceDataAtRow(row);
+                    if (!rowData) return;
+                    
+                    trackChange('variants', row, prop, oldValue, newValue, rowData);
+                });
             }
         });
         
         // Store attribute info for saving
         variantsHot.attributeColumns = jsonData.attribute_columns || [];
+        
+        // Store original data and clear pending changes
+        storeOriginalData('variants', jsonData.data);
+        clearPendingChanges('variants');
+        
+        // Check for draft after a short delay
+        setTimeout(() => {
+            checkForDraft('variants');
+        }, 500);
     }
     
     function duplicateRow(hot, rowIndex) {
@@ -2148,6 +3111,7 @@
                 setStatus('variants-status', 
                     `✓ ${result.created} criada(s), ${result.updated} atualizada(s)`, 'success');
                 newVariantRows.clear();
+                clearPendingChanges('variants');  // Clear change tracking
                 loadVariants(); // Reload
             } else {
                 setStatus('variants-status', `Erro: ${result.message}`, 'error');

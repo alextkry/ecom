@@ -171,11 +171,45 @@ Bugfix: O texto referente às categorias também esta no canto direito da modal 
 
 # Specifications v1.0.10
 
+O Problema
+Atualmente AttributeOption é global → ao selecionar cor para uma variante de "Produto A" (que tem 3 cores), aparecem todas as 200 cores do sistema.
+
+Soluções Possíveis
+Opção 1: Atributos por Produto (Recomendada) ✅
+Adicionar FK de Product em AttributeOption:
+
+
+class AttributeOption(models.Model):    attribute_type = ForeignKey(AttributeType)    product = ForeignKey(Product, null=True, blank=True)  # Se null = global    value = CharField(max_length=255)    display_name = CharField(max_length=255, blank=True)  # Nome exibido (opcional)    filter_group = CharField(max_length=100, blank=True)  # Para filtros globais
+Fluxo:
+
+Ao definir atributos no JSON do produto, cria AttributeOption específicas para aquele produto
+Dropdown de variantes mostra apenas opções do produto atual
+filter_group permite agrupar "Vermelho Ferrari" + "Vermelho Bordô" como "vermelho" nos filtros
 
 
 Também seria bom que ao selecionar um produto específico na tab de variantes, 
 
 
+# Specifications v1.0.11
+
+Seria bom que na tabela de atributos eu pudesse clickar na "quantidade de produtos" para aquele atributo e o sistema me mostrasse a tabela com aqueles produtos filtrados por aquele atributo (em outras palavras, aqueles produtos que os contém). Também seria bom que na tabela de atributos eu pudesse ver as opções que cada um deles abrange. Pensei como se fosse uma espécie de "expand/contract" por linha de atributo, mas aceito sugestões.
+
+
+
+# Specifications v1.0.12
+
+A coluna de imagens da tabela de produtos deveria se comportar de forma semelhante à de imagens das variantes de produtos. Eu deveria poder apertar nela para adicionar uma nova imagem. No caso de haver múltiplas variantes, seria interessante que pudesse gerenciar as imagens das variantes individualmente (talvez simplesmente através da tabela de Variantes de produtos).
+
+
+# Specifications v1.0.13
+
+Ao lado da coluna "criado em" adicionar a coluna "modificado em", considerando que a modificação de uma variante de um produto deve ser considerado como a modificação de um produto
+
+
+
+# Specifications v1.0.14
+
+Ao lado da coluna "criado em" adicionar a coluna "modificado em", considerando que a modificação de uma variante de um produto deve ser considerado como a modificação de um produto
 
 
 
@@ -184,3 +218,145 @@ Também seria bom que ao selecionar um produto específico na tab de variantes,
 ## Ideia 1
 
 Seria bom indicar de qual coluna o SLUG é dependente (por exemplo, do nome) e gerar na tabela o slug automaticamente ao modificar a célula correspondente quando o campo de slug está vazio. 
+
+
+
+
+
+
+
+
+
+==========
+
+Sugestões curtas, em dois níveis (frontend + backend):
+
+**Frontend (browser)**
+- **Marcação visual de células alteradas** (ex: borda/ fundo) e **painel de mudanças** com lista “campo antigo → novo”.
+- **Draft local**: salvar alterações no `localStorage` por grid, com botão **“Desfazer tudo”**.
+- **Diff por linha**: exibir ícone/contador por linha com tooltip das alterações.
+
+**Backend (persistência)**
+- **Audit log por modelo** (Product/Variant/Group/AttributeOption) com: `field`, `old_value`, `new_value`, `user`, `timestamp`, `request_id`.
+- **Versionamento por entidade** (tabela `*_history`) para **rollback** por versão.
+- **Transações por bulk-save**: salvar tudo como um “change set” com ID, permitindo **reverter em lote**.
+- **Bloqueio otimista** (`updated_at`/`version`) para evitar conflito de edição.
+
+Se quiser, implemento primeiro o **audit log + rollback por change set** (impacto alto e pouco invasivo).
+
+===========
+
+Excelentes pontos! Vou detalhar as sugestões em **3 níveis**:
+
+---
+
+## 1. Frontend — Diff Visual (antes de salvar)
+
+### 1.1 Marcação de células alteradas
+- **Cor de fundo** diferente para células editadas (ex: amarelo claro)
+- **Borda** para linhas novas (verde) e linhas com alterações (amarelo)
+- **Indicador de "dirty"** na aba (ex: `Produtos •` ou `Produtos (3)`)
+
+### 1.2 Painel de mudanças pendentes
+- Lista resumida: `"Produto #5: nome 'Antigo' → 'Novo', preço 10.00 → 12.00"`
+- Botão **"Desfazer"** por item ou **"Desfazer Tudo"**
+- Exibir **antes de salvar** em modal de confirmação
+
+### 1.3 Persistência local (draft)
+- Salvar alterações no `localStorage` automaticamente
+- Recuperar ao recarregar a página (com aviso "Você tem alterações não salvas")
+
+---
+
+## 2. Backend — Audit Log + Versionamento
+
+### 2.1 Modelo `ChangeSet` (transação de salvamento)
+```python
+class ChangeSet(models.Model):
+    user = ForeignKey(User)
+    created_at = DateTimeField(auto_now_add=True)
+    description = TextField(blank=True)  # "Bulk edit: 5 produtos, 12 variantes"
+    
+class ChangeRecord(models.Model):
+    changeset = ForeignKey(ChangeSet, related_name='records')
+    content_type = ForeignKey(ContentType)  # Product, Variant, etc.
+    object_id = PositiveIntegerField()
+    action = CharField(choices=['create', 'update', 'delete'])
+    field_name = CharField(max_length=100, blank=True)
+    old_value = JSONField(null=True)
+    new_value = JSONField(null=True)
+```
+
+### 2.2 Fluxo
+1. Cada `saveProducts()` cria um `ChangeSet`
+2. Para cada campo alterado, cria um `ChangeRecord`
+3. Permite **visualizar histórico** por produto/variante
+4. Permite **rollback** de um `ChangeSet` inteiro
+
+### 2.3 Rollback
+- Botão "Desfazer último salvamento" aplica os `old_value` de cada `ChangeRecord`
+- Histórico de rollbacks também é logado
+
+---
+
+## 3. Outras Sugestões
+
+| Sugestão | Benefício |
+|----------|-----------|
+| **Bloqueio otimista** (`version` field) | Evita conflito quando 2 usuários editam o mesmo produto |
+| **Preview antes de salvar** | Modal mostrando exatamente o que será alterado/criado/deletado |
+| **Notificação de conflito** | "Este produto foi alterado por outro usuário. Recarregar?" |
+| **Export do diff** | Baixar CSV/JSON das alterações pendentes para revisão |
+| **Undo/Redo no grid** | Ctrl+Z / Ctrl+Y funcionando nativamente |
+
+---
+
+## Recomendação de Implementação
+
+Sugiro implementar em **2 fases**:
+
+### Fase 1 (Impacto imediato, menos invasivo)
+1. ✅ Marcação visual de células/linhas alteradas no frontend
+2. ✅ Modal de confirmação com diff antes de salvar
+3. ✅ `localStorage` para draft/recuperação
+
+### Fase 2 (Auditoria completa)
+1. ✅ Modelos `ChangeSet` + `ChangeRecord`
+2. ✅ Histórico de alterações por entidade
+3. ✅ Interface de rollback
+
+---
+
+**Quer que eu comece pela Fase 1 (frontend diff + confirmação)?** É o que dá feedback visual imediato e ajuda a evitar erros antes mesmo de chegar ao banco.
+
+========
+
+Sim, mantenho as sugestões anteriores, pois elas cobrem exatamente as duas pontas do problema (Experiência do Usuário e Segurança de Dados).
+
+Para complementar e responder à sua pergunta sobre **"outras sugestões"**, aqui está uma arquitetura refinada para atender a esse requisito de robustez:
+
+### 1. Frontend: "Stage & Commit" (O conceito de Diff)
+Em vez de salvar diretamente, o botão "Salvar" deve acionar um **Modal de Confirmação (Stage)**.
+*   **Visualização:** Células editadas ficam com fundo amarelo (`bg-yellow-100 `).
+*   **Draft Local:** Se o navegador fechar, ao reabrir, perguntar: *"Existem alterações não salvas de 10 minutos atrás. Restaurar?"* (usando `localStorage`).
+*   **O "Diff" Modal:** Antes de enviar ao servidor, abre um modal listando:
+    *   *Produto X - Preço:* `10.00` → `12.00`
+    *   *Variante Y - Estoque:* `0` → `50`
+    *   *Total de alterações:* 5 campos modificados.
+
+### 2. Backend: Arquitetura de "ChangeSets" (Para Rollback)
+Não salve apenas o estado atual. Salve a **transação**.
+*   **Entidade `ChangeSet`:** Representa um "clique no botão salvar". Contém data, usuário e uma lista de `ChangeItems`.
+*   **Entidade `ChangeItem`:** Contém `Tabela`, `ID_Objeto`, `Campo`, `Valor_Antigo`, `Valor_Novo`.
+*   **Rollback:** Um botão "Reverter Lote #123" que percorre os itens e aplica o `Valor_Antigo` de volta.
+*   **Segurança (Concurrency):** Enviar um timestamp de `last_updated_at` junto com a edição. Se o banco tiver um timestamp mais recente que o da tela do usuário, bloquear o salvamento e avisar para não sobrescrever o trabalho de outro.
+
+---
+
+### Minha recomendação de implementação
+
+Sugiro **começarmos pela Fase 1 (Frontend Diff + Confirmação)**.
+
+Isso traz o maior valor imediato: evita erros operacionais ("editei a linha errada sem querer") e dá a "ciência do que será persistido" que você pediu, sem a complexidade de criar novas tabelas no banco de dados agora.
+
+**Podemos começar implementando o realce visual (amarelo para editados) e o modal de confirmação "De/Para"?**

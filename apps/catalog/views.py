@@ -222,11 +222,11 @@ def _process_categories_json(product, categories_json):
     category_ids = []
     
     for cat_data in categories_json:
-        nome = cat_data.get('nome', '').strip()
+        nome = (cat_data.get('nome') or '').strip()
         if not nome:
             continue
         
-        cat_slug = cat_data.get('slug', '').strip() or slugify(nome)
+        cat_slug = (cat_data.get('slug') or '').strip() or slugify(nome)
         parent_slug = cat_data.get('pai')
         
         # Get parent category if specified
@@ -325,7 +325,7 @@ def _process_product_json_data(product, item):
         # Collect current attribute values from JSON (empty dict if attributes_json is [])
         current_attr_values = {}  # {attr_slug: set(values)}
         for attr_data in attributes_json:
-            attr_name = attr_data.get('atributo', '').strip()
+            attr_name = (attr_data.get('atributo') or '').strip()
             valores = attr_data.get('valores', [])
             if attr_name:
                 attr_slug = slugify(attr_name)
@@ -353,7 +353,7 @@ def _process_product_json_data(product, item):
                     option.delete()
         
         for attr_data in attributes_json:
-            attr_name = attr_data.get('atributo', '').strip()
+            attr_name = (attr_data.get('atributo') or '').strip()
             valores = attr_data.get('valores', [])
             
             if not attr_name or not valores:
@@ -398,7 +398,7 @@ def _process_product_json_data(product, item):
     # If variants changed but attributes didn't, still need to build attr_type_map from existing data
     elif variants_changed and effective_attributes_json:
         for attr_data in effective_attributes_json:
-            attr_name = attr_data.get('atributo', '').strip()
+            attr_name = (attr_data.get('atributo') or '').strip()
             valores = attr_data.get('valores', [])
             
             if not attr_name or not valores:
@@ -430,7 +430,7 @@ def _process_product_json_data(product, item):
         effective_variants_json = variants_json if variants_json else product.metadata_variants
         if effective_variants_json:
             for var_data in effective_variants_json:
-                sku = var_data.get('sku', '').strip()
+                sku = (var_data.get('sku') or '').strip()
                 if not sku:
                     continue
                 
@@ -460,7 +460,7 @@ def _process_product_json_data(product, item):
         new_skus = set()
         
         for var_data in variants_json:
-            sku = var_data.get('sku', '').strip()
+            sku = (var_data.get('sku') or '').strip()
             if not sku:
                 continue
             
@@ -526,11 +526,11 @@ def _process_product_json_data(product, item):
         new_group_slugs = set()
         
         for grp_data in groups_json:
-            nome = grp_data.get('nome', '').strip()
+            nome = (grp_data.get('nome') or '').strip()
             if not nome:
                 continue
             
-            grp_slug = grp_data.get('slug', '').strip() or slugify(nome)
+            grp_slug = (grp_data.get('slug') or '').strip() or slugify(nome)
             new_group_slugs.add(grp_slug)
             
             # Get or create group
@@ -557,7 +557,9 @@ def _process_product_json_data(product, item):
                 
                 # Add new members
                 for sku in variant_skus:
-                    sku = sku.strip()
+                    sku = (sku or '').strip()
+                    if not sku:
+                        continue
                     try:
                         variant = Variant.objects.get(product=product, sku=sku)
                         VariantGroupMembership.objects.create(
@@ -635,7 +637,7 @@ def bulk_products_save(request):
                     warnings.extend(product_warnings)
                 
                 # If SKU is provided for new product (and no variants_json), create inline variant
-                sku = item.get('sku', '').strip()
+                sku = (item.get('sku') or '').strip()
                 if sku and not item.get('variants_json') and not Variant.objects.filter(sku=sku).exists():
                     Variant.objects.create(
                         product=product,
@@ -671,7 +673,7 @@ def bulk_products_save(request):
                 # Skip if variants_json was provided (those take precedence)
                 if not item.get('has_variants', False) and not item.get('variants_json'):
                     variant_id = item.get('variant_id')
-                    sku = item.get('sku', '').strip()
+                    sku = (item.get('sku') or '').strip()
                     
                     if sku:
                         if variant_id:
